@@ -1,11 +1,21 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import './index.css'
+
+// Firebase Imports
+import { getProjects, seedInitialProjects, addProject } from './services/firestoreService'
+import { INITIAL_PROJECTS } from './data/initialProjects'
 
 function App() {
   const [imageSrc, setImageSrc] = useState(null)
   const [imageFile, setImageFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [renderedImage, setRenderedImage] = useState(null)
+  
+  // Firebase Projects State
+  const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState(null)
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
   
   // Advanced Features State
   const [activeTab, setActiveTab] = useState('upload') // 'upload' or 'generate'
@@ -57,6 +67,86 @@ function App() {
   const [aspectRatio, setAspectRatio] = useState("original")
 
   const fileInputRef = useRef(null)
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FIREBASE: Load projects on mount
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    loadProjects()
+  }, [])
+
+  const loadProjects = async () => {
+    try {
+      const projectsList = await getProjects()
+      setProjects(projectsList)
+      console.log('Loaded projects from Firestore:', projectsList.length)
+    } catch (error) {
+      console.error('Error loading projects:', error)
+    }
+  }
+
+  const handleSeedProjects = async () => {
+    setLoading(true)
+    try {
+      await seedInitialProjects(INITIAL_PROJECTS)
+      await loadProjects()
+      alert('¡Proyectos migrados a Firebase exitosamente!')
+    } catch (error) {
+      console.error('Error seeding:', error)
+      alert('Error migrando proyectos: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSelectProject = (project) => {
+    setSelectedProject(project)
+    setProjectContext(project.name)
+    
+    // Auto-apply project copy
+    if (project.super_headline) setSuperHeadline(project.super_headline)
+    if (project.main_headline) setMainHeadline(project.main_headline)
+    if (project.body_text) setBodyText(project.body_text)
+    if (project.layout) setLayout(project.layout)
+    
+    // Auto-apply project colors
+    if (project.color_scheme) {
+      const cs = project.color_scheme
+      if (cs.accent) setAccentColor(cs.accent)
+      if (cs.text) setTextColor(cs.text)
+      if (cs.logo) setLogoColor(cs.logo)
+      setLineColor(cs.accent || '#d4af37')
+    }
+    
+    setRenderedImage(null) // Reset preview
+  }
+
+  const handleAddProject = async () => {
+    if (!newProjectName.trim()) return
+    setLoading(true)
+    try {
+      await addProject({
+        name: newProjectName.toUpperCase().replace(/\s+/g, '_'),
+        displayName: newProjectName,
+        super_headline: 'NUEVO PROYECTO',
+        main_headline: newProjectName + '\nNueva Oportunidad',
+        body_text: 'Descripción del proyecto aquí.',
+        layout: 'center',
+        color_scheme: {
+          accent: '#d4af37',
+          text: '#ffffff',
+          logo: '#d4af37'
+        }
+      })
+      await loadProjects()
+      setShowAddProjectModal(false)
+      setNewProjectName('')
+    } catch (error) {
+      alert('Error agregando proyecto: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0]
@@ -381,15 +471,60 @@ function App() {
           </div>
         )}
 
-        <div className="form-group">
-          <label className="form-label">Contexto del Proyecto (IA Copy)</label>
-          <input 
-            type="text" 
-            className="form-input" 
-            placeholder="Nombre del proyecto o datos clave"
-            value={projectContext}
-            onChange={(e) => setProjectContext(e.target.value)}
-          />
+        {/* SELECTOR DE PROYECTOS DINÁMICO (Firebase) */}
+        <div className="form-group" style={{ background: 'rgba(212,175,55,0.05)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(212,175,55,0.2)' }}>
+          <label className="form-label" style={{ color: '#d4af37', fontWeight: 'bold', fontSize: '0.75rem', letterSpacing: '1px' }}>
+            📁 PROYECTO
+          </label>
+          
+          {projects.length > 0 ? (
+            <select 
+              className="form-select" 
+              value={selectedProject?.id || ''} 
+              onChange={(e) => {
+                const proj = projects.find(p => p.id === e.target.value)
+                if (proj) handleSelectProject(proj)
+              }}
+              style={{ marginBottom: '8px' }}
+            >
+              <option value="">— Seleccionar proyecto —</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName || p.name} {p.location ? `(${p.location})` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '10px' }}>
+              <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '10px' }}>No hay proyectos en Firebase</p>
+              <button 
+                className="btn btn-ai" 
+                style={{ padding: '8px 16px' }} 
+                onClick={handleSeedProjects}
+              >
+                🚀 Migrar Proyectos a Firebase
+              </button>
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="O escribe nombre manualmente..."
+              value={projectContext}
+              onChange={(e) => setProjectContext(e.target.value)}
+              style={{ flex: 1, fontSize: '0.85rem' }}
+            />
+            <button 
+              className="btn btn-secondary" 
+              style={{ width: 'auto', padding: '6px 10px', fontSize: '0.8rem' }}
+              onClick={() => setShowAddProjectModal(true)}
+              title="Agregar nuevo proyecto"
+            >
+              +
+            </button>
+          </div>
         </div>
 
         <div className="form-group" style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
@@ -726,6 +861,50 @@ function App() {
                 alert("!Variante " + (currentVariantIndex + 1) + " copiada!");
               }}>
                 📋 Copiar Esta Variante
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA AGREGAR NUEVO PROYECTO */}
+      {showAddProjectModal && (
+        <div className="modal-overlay" onClick={() => setShowAddProjectModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>➕ Nuevo Proyecto</h3>
+              <button className="close-btn" onClick={() => setShowAddProjectModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Nombre del Proyecto</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Ej: NUEVO DESARROLLO TULUM"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <p style={{ color: '#888', fontSize: '0.8rem', marginTop: '10px' }}>
+                El proyecto se guardará en Firebase y estará disponible para generar copy y anuncios.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                style={{ marginRight: '10px' }}
+                onClick={() => setShowAddProjectModal(false)}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleAddProject}
+                disabled={!newProjectName.trim()}
+              >
+                🚀 Crear Proyecto
               </button>
             </div>
           </div>
