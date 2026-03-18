@@ -1,0 +1,402 @@
+{
+    "ANTHAR": {
+        "super_headline": "ARCHITECTURAL LEGACY",
+        "main_headline": "Anthar: Simetría entre\nla Tierra y las Estrellas",
+        "body_text": "Tributo al Mediterráneo en el corazón de Playa del Carmen.\nUn refugio de diseño simbólico con centro comercial privado y seguridad absoluta.",
+        "layout": "right",
+        "accent_color": "AUBURN",
+        "main_text_color": "WHITE"
+    },
+    "LUNARA": {
+        "super_headline": "TROPICAL SANCTUARY",
+        "main_headline": "Lunara: Siete Cenotes\ncomo su Jardín Privado",
+        "body_text": "Privacidad extrema en el entorno virgen de Akumal.\nUn legado patrimonial inmerso en la selva para el inversor consciente.",
+        "layout": "left",
+        "accent_color": "EMERALD",
+        "main_text_color": "WHITE"
+    },
+    "MUSA_DEL_PUERTO": {
+        "super_headline": "CONTEMPORARY ELEGANCE",
+        "main_headline": "Musa: Redefiniendo el\nLujo en Puerto Morelos",
+        "body_text": "Distribución funcional y estética apacible frente al mar Caribe.\nLa inversión segura en el nodo de mayor crecimiento sostenido.",
+        "layout": "center",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE"
+    },
+    "SOLE_BLU": {
+        "super_headline": "OCEANFRONT SOPHISTICATION",
+        "main_headline": "Sole Blu: Conexión Pura\ncon el Mar Caribe",
+        "body_text": "Arquitectura contemporánea diseñada para maximizar la vista al océano.\nUn refugio de sofisticación con servicios de resort de clase mundial.",
+        "layout": "right",
+        "accent_color": "GOLD",
+        "main_text_color": "WHITE"
+    },
+    "BAY_VIEW_GRAND": {
+        "super_headline": "GLOBAL STATUS",
+        "main_headline": "Bay View Grand: El Epicentro\ndel Lujo en Cancún",
+        "body_text": "Vistas panorámicas duales: el Caribe y la Laguna Nichupté.\nEstatus, seguridad y plusvalía en la ubicación más icónica de la Zona Hotelera.",
+        "layout": "left",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE"
+    },
+    "THE_RESIDENCES": {
+        "super_headline": "ULTIMATE PRIVACY",
+        "main_headline": "Grand Island: Discreción y\nArquitectura Excepcional",
+        "body_text": "Refugio residencial de ultra-lujo para el perfil UHNW.\nPrivacidad absoluta y diseño de vanguardia en el corazón de la Zona Hotelera.",
+        "layout": "center",
+        "accent_color": "ONYX",
+        "main_text_color": "WHITE"
+    },
+    "LOMAS_AURORA": {
+        "super_headline": "FAMILY HERITAGE",
+        "main_headline": "Lomas Aurora: Confort y\nSeguridad entre Lagos",
+        "body_text": "Desarrollo residencial rodeado de naturaleza cerca de Xcaret.\nEl entorno perfecto para consolidar el legado familiar con plusvalía garantizada.",
+        "layout": "right",
+        "accent_color": "EMERALD",
+        "main_text_color": "WHITE"
+    },
+    "SAMSARA": {
+        "super_headline": "YOUR SAMSARA LIFE",
+        "main_headline": "Samsara: Tu Refugio de\nLujo Privado en Tulum",
+        "body_text": "Colección Iconic Boutique con acabados de ultra-lujo.\nUnidades de 2 habitaciones listas para entrega inmediata en el corazón de la Riviera Maya.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "main_text_color": "WHITE"
+    },
+    "VELMARI": {
+        "super_headline": "VELMARI PUERTO CANCÚN",
+        "main_headline": "Privacidad Náutica\nPatrimonio Absoluto.",
+        "body_text": "Infraestructura de élite con marina privada.\nUnidades expansivas diseñadas para la preservación de capital y el máximo confort.",
+        "layout": "right"
+    },
+    "MISTRAL": {
+        "super_headline": "MISTRAL COSTA MUJERES",
+        "main_headline": "Refugio Frente al Mar\nInversión Protegida.",
+        "body_text": "Privacidad absoluta frente al Caribe.\nDiseñado para carteras de inversión a largo plazo que exigen plusvalía garantizada.",
+        "layout": "center",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE"
+    },
+    "EL ENCANTO": {
+        "super_headline": "EL ENCANTO PLAYA MUJERES",
+        "main_headline": "Dimensiones Palaciegas\nBienestar Institucional.",
+        "body_text": "Espacios de hasta 4,000 sqft.\nLa integración perfecta entre arquitectura de ultra-lujo y bienestar residencial inquebrantable.",
+        "layout": "left"
+    },
+    "SEE TOWERS": {
+        "super_headline": "SEE TOWERS CANCÚN",
+        "main_headline": "El Ingreso Inteligente\nal Ecosistema de Lujo.",
+        "body_text": "Vistas espectaculares a la laguna.\nPunto de entrada altamente competitivo con liquidez asegurada en el mercado premium.",
+        "layout": "right"
+    },
+    "COSTA RESIDENCES": {
+        "super_headline": "COSTA RESIDENCES CORASOL",
+        "main_headline": "Frente de Playa Ininterrumpido\nComunidad de Clase Mundial.",
+        "body_text": "Penthouses de ultra-lujo en comunidad cerrada.\nUn activo refugio de alto retorno pasivo.",
+        "layout": "center"
+    },
+    "AMARES": {
+        "super_headline": "WELLNESS RESIDENTIAL RESORT",
+        "main_headline": "Amares: El Equilibrio entre\nSalud y Patrimonio",
+        "body_text": "Primera comunidad planeada con 3 cenotes privados exclusivos.\nDonde la naturaleza se fusiona con la infraestructura de mayor sofisticación y ROI.",
+        "layout": "left",
+        "accent_color": "EMERALD",
+        "main_text_color": "WHITE"
+    },
+    "CANDELA": {
+        "super_headline": "CANDELA TULUM",
+        "main_headline": "Arquitectura de Autor\nConservación Impecable.",
+        "body_text": "Colección ultra-exclusiva de 12 casas de lujo.\n71% de selva virgen protegida para un retiro patrimonial incomparable.",
+        "layout": "right"
+    },
+    "CASA LUNA": {
+        "super_headline": "CASA LUNA TULUM",
+        "main_headline": "Diseño Vanguardista\nEntretenimiento sin Paralelos.",
+        "body_text": "Piscina arquitectónica, cascada y amenidades premium.\nUn oasis privado para quienes exigen lo extraordinario.",
+        "layout": "center"
+    },
+    "INNA": {
+        "super_headline": "BEACHFRONT WELLNESS OASIS",
+        "main_headline": "Inna: Autonomía Privada y\nHospitalidad 5 Estrellas",
+        "body_text": "Condominios frente al mar con servicios hoteleros de lujo.\nUn refugio de bienestar diseñado para inversionistas UHNW en Puerto Morelos.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "main_text_color": "WHITE"
+    },
+    "ROSEWOOD MAYAKOBA": {
+        "super_headline": "ROSEWOOD MAYAKOBA",
+        "main_headline": "El Santuario Insuperable\nColección Limitada.",
+        "body_text": "Arquitectura que honra la cultura local.\nUltra-lujo inmerso en lagunas cristalinas para los perfiles más exigentes del mundo.",
+        "layout": "center"
+    },
+    "VIU": {
+        "super_headline": "VIU SAN MIGUEL",
+        "main_headline": "Acabados Auténticos\nOportunidad Irrepetible.",
+        "body_text": "El primer desarrollo en San Miguel de Allende edificado con Chukum auténtico.\nLujo atemporal en el corazón de la historia.",
+        "layout": "right"
+    },
+    "ALBA": {
+        "super_headline": "ALBA PUERTO CANCÚN",
+        "main_headline": "El Epicentro de la\nConectividad Financiera.",
+        "body_text": "La máxima expresión del Lujo Institucional.\nDonde el poder, la privacidad y un ROI de alto rendimiento se encuentran.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "main_text_color": "WHITE",
+        "logo_color": "WHITE"
+    },
+    "ARECAS": {
+        "super_headline": "ARECAS RESIDENCES",
+        "main_headline": "Simetría Arquitectónica\nSoberanía Natural.",
+        "body_text": "Espacios donde la proporción perfecta se encuentra con la materialidad endémica.\nUn activo refugio diseñado para trascender el tiempo y asegurar su patrimonio.",
+        "layout": "right",
+        "accent_color": "AUBURN",
+        "main_text_color": "WHITE"
+    },
+    "VILLA": {
+        "super_headline": "VILLAS EXCLUSIVAS",
+        "main_headline": "El Arte de Habitar\nPrivacidad Selectiva.",
+        "body_text": "Diseño arquitectónico de vanguardia rodeado de la naturaleza.\nUn santuario residencial para consolidar tu legado.",
+        "layout": "right",
+        "accent_color": "GOLD",
+        "main_text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "ALTRA": {
+        "super_headline": "ALTRA PLAYA DEL CARMEN",
+        "main_headline": "El Corazón de Playa.\nTu Legado en el Caribe.",
+        "body_text": "A pasos de la Quinta Avenida y Playa Mamitas.\nEstudios y departamentos con rooftop pool y plusvalía inmediata.",
+        "layout": "center",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "MACONDO": {
+        "super_headline": "MACONDO RESIDENCES",
+        "main_headline": "Inversión Inteligente\nen Playa del Carmen.",
+        "body_text": "Modelos de entrega inmediata y preventa en Mayakoba.\nAlta rentabilidad vacacional y acabados de lujo.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "main_text_color": "WHITE"
+    },
+    "MELIORA": {
+        "super_headline": "MELIORA PDC",
+        "main_headline": "Exclusividad Re-definida.\nEstilo de Vida Urbano.",
+        "body_text": "Ubicación privilegiada para rentas de corto plazo.\nDiseño contemporáneo con amenidades de primer nivel.",
+        "layout": "right",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE"
+    },
+    "PARAMAR BLACK": {
+        "super_headline": "PARAMAR BLACK TULUM",
+        "main_headline": "Elegancia en la Selva\nEntrega Inmediata.",
+        "body_text": "La fusión perfecta entre lujo y naturaleza en Aldea Zama.\nInvierta con la seguridad de más de 35 proyectos entregados y esquema 30/70.",
+        "layout": "center",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "PIEDRA_DE_MAR": {
+        "super_headline": "PIEDRA DE MAR PUERTO MORELOS",
+        "main_headline": "Comodidad y Naturaleza\nen una Comunidad Exclusiva",
+        "body_text": "Opción de renta vacacional para una gran inversión. Amenidades premium: alberca infinity en el rooftop, bar, asadores, gimnasio y ludoteca.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "RESIDENCIAL_VANGUARDIA": {
+        "super_headline": "RESIDENCIAL VANGUARDIA CANCÚN",
+        "main_headline": "Estilo de Vida Náutico\nen el Corazón de Cancún",
+        "body_text": "Alta plusvalía garantizada en zona céntrica. Amenidades tipo resort: alberca con asoleadero infinity, carril de nado, spa, 3 canchas de pádel, fútbol 7, tenis y ciclovía.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "DISTRITO_PUERTO": {
+        "super_headline": "DISTRITO PUERTO",
+        "main_headline": "Vive Frente al Mar\nen Puerto Morelos",
+        "body_text": "Gran oportunidad de inversión con entrega inmediata. Amenidades exclusivas: 2 albercas, playa privada, bar, asador, salón de usos múltiples y seguridad 24/7.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "BAKAL_TULUM": {
+        "super_headline": "BAKAL TULUM",
+        "main_headline": "Residencias, Hotel y Retail\nel Nuevo Cityplace",
+        "body_text": "Retornos de inversión (ROI) en un promedio del 14% anual. Amenidades únicas: alberca infinity en rooftop, club de playa, gimnasio, sala de yoga, restaurante y lounge bar.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "SENZIK_TULUM": {
+        "super_headline": "SENZIK TULUM",
+        "main_headline": "Elegancia y Cultura\nen Tulum Country Club",
+        "body_text": "Inversión con sentido en desarrollo boutique. Amenidades de lujo: acceso exclusivo a KAY Beach Club, campo de golf PGA, jungle pool de 25m, cenote lounge, yoga deck y coworking.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "SELVA_ESCONDIDA_II": {
+        "super_headline": "SELVA ESCONDIDA II",
+        "main_headline": "El Corazón de la Riviera Maya\nTu Pedazo de Paraíso",
+        "body_text": "Atractivo ROI anual de hasta 12% (Airbnb Friendly). Más de 30 amenidades que incluyen albercas, canchas deportivas, fire pit, gimnasio, coworking y cerraduras inteligentes.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "BARRIO_W": {
+        "super_headline": "BARRIO W MONTERREY",
+        "main_headline": "Tu Barrio\nHace Ciudad",
+        "body_text": "Producto ideal para inversionistas que buscan un mejor retorno de inversión (ROI). Desarrollo mixto de 2 torres con amenidades integradas y zona comercial con entrega inmediata.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "CASA_MENARA": {
+        "super_headline": "CASA MENARA PUERTO ESCONDIDO",
+        "main_headline": "Más que un Hogar\nun Estilo de Vida",
+        "body_text": "ROI anual proyectado del 20-25% con altísima ocupación. Amenidades: piscina infinita en azotea de 17m, área de fogatas, barbacoa, gimnasio al aire libre e internet Starlink.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "PARAVIAN_PRIVATE_LIVING": {
+        "super_headline": "PARAVIAN PRIVATE LIVING",
+        "main_headline": "A Pasos de la 5ta Avenida\nPlaya del Carmen",
+        "body_text": "Fuerte potencial de renta vacacional (Airbnb) y sólida apreciación a largo plazo. Amenidades resort: piscina panorámica en rooftop, jacuzzi, gimnasio equipado y coworking.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "BOREANA": {
+        "super_headline": "BOREANA MÉRIDA",
+        "main_headline": "Naturaleza y Vanguardia\nal Norte de Mérida",
+        "body_text": "Townhouses en zona de alto crecimiento y gran plusvalía. Amenidades: parque central, casa club, alberca, cancha de pádel, restaurante/bar, gimnasio y área de yoga.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "RESIDENCIAL_SAN_IGNACIO": {
+        "super_headline": "RESIDENCIAL SAN IGNACIO",
+        "main_headline": "Desarrollo Exclusivo\nen Mérida-Progreso",
+        "body_text": "Excelente potencial de plusvalía (solo 6 unidades). Amenidades destacadas: cancha de pádel, piscina, canal de nado, gimnasio equipado, game cave, salón de yoga y minigolf.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "PRIVADA_RESIDENCIAL_CHOLUL": {
+        "super_headline": "PRIVADA RESIDENCIAL CHOLUL",
+        "main_headline": "Ambiente Seguro\nde Creciente Plusvalía",
+        "body_text": "Inversión segura en zona de alta demanda. Amenidades: caseta de vigilancia 24/7, alberca, cancha de pádel, gimnasio, terraza social techada, área grill y pet park.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "SKYLINE_TULUM": {
+        "super_headline": "SKYLINE TULUM",
+        "main_headline": "Diseño Europeo Contemporáneo\nen Aldea Zama",
+        "body_text": "Mayor ROI garantizado por su ubicación premium y facilidad de renta. Amenidades tipo boutique con máxima privacidad: penthouses triplex con rooftops privados, piscina y solarium.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "PINK_RIAD": {
+        "super_headline": "PINK RIAD TULUM",
+        "main_headline": "Tu Refugio en Pre-venta\nen el Corazón de Tulum",
+        "body_text": "Oportunidad excepcional de 93 m² por $6,980,000 MXN. Incluye 2 habitaciones, piscina y amenidades pet-friendly en una zona de altísima plusvalía y demanda constante.",
+        "layout": "left",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "RIVA_PUERTO_CANCUN": {
+        "super_headline": "RIVA PUERTO CANCÚN",
+        "main_headline": "Lujo Vertical y Sustentabilidad\nFrente a la Laguna",
+        "body_text": "Edificio boutique de solo 40 unidades con certificación LEED (40% ahorro agua/luz). Amenidades: rooftop pool, jacuzzi, gimnasio y muelle privado al canal de navegación.",
+        "layout": "right",
+        "accent_color": "PLATINUM",
+        "text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "OCEAN_TULUM": {
+        "super_headline": "OCEAN TULUM",
+        "main_headline": "Calidad de Vida e\nInversión Segura",
+        "body_text": "Desarrollo de 272 unidades desde $83,490 USD enfocadas en ingresos por rentas. Diseño biofílico con zona comercial, restaurantes y una atmósfera inigualable del Mar Caribe.",
+        "layout": "center",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "AFLORA_TULUM": {
+        "super_headline": "AFLORA TULUM",
+        "main_headline": "Comodidad Moderna y\nElegancia Atemporal",
+        "body_text": "Comunidad privada en Aldea Zamá con 199 unidades eco-luxury. Amenidades premium: Wellness Lagoon, Bath House Spa, temazcal, piscina semiolímpica y acceso a club de playa.",
+        "layout": "left",
+        "accent_color": "PLATINUM",
+        "text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "AZULIK_RESIDENCES": {
+        "super_headline": "AZULIK RESIDENCES TULUM",
+        "main_headline": "Lujo, Arte y Legado Ancestral\nen la Selva Maya",
+        "body_text": "Diseño icónico de Roth Design que fusiona naturaleza y modernidad. Beneficios exclusivos en Azulik Owners Club y amenidades inmersas en la jungla para una plusvalía superior.",
+        "layout": "right",
+        "accent_color": "PLATINUM",
+        "text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "OPENCLAW": {
+        "super_headline": "AUTONOMY & INTELLECTUAL CAPITAL",
+        "main_headline": "Soberanía Agéntica:\nExclusividad Tecnológica Absoluta",
+        "body_text": "En el ecosistema de 2026, la privacidad no es una opción, es un estilo de vida de élite. OpenClaw redefine el santuario digital mediante el desacoplamiento orgánico de las grandes nubes comerciales. Al blindar sus ejecuciones en una red personal impenetrable, garantizamos que sus creaciones, datos y paz mental permanezcan bajo su control total. Es el estándar definitivo de 'Quiet Luxury' para visionarios exigentes.",
+        "layout": "center",
+        "accent_color": "PLATINUM",
+        "text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "THE_LANDMARK": {
+        "super_headline": "URBAN EXCLUSIVITY",
+        "main_headline": "The Landmark: Refinamiento Urbano\na Pasos de la Quinta Avenida",
+        "body_text": "Estudios y residencias de lujo con Sky Club y alberca infinity. Maximice su inversión en el punto más vibrante y exclusivo de Playa del Carmen.",
+        "layout": "premium_1",
+        "accent_color": "GOLD",
+        "text_color": "WHITE",
+        "logo_color": "GOLD"
+    },
+    "MACONDO_CORAZON": {
+        "super_headline": "URBAN LIFESTYLE",
+        "main_headline": "Macondo Corazón: Magnificencia\ny Sofisticación en Playa",
+        "body_text": "Diseño estético y sublime con alianza exclusiva Porcelanosa.\nUn refugio incomparable a pasos del vibrante pulso de la Quinta Avenida.",
+        "layout": "center",
+        "accent_color": "PLATINUM",
+        "main_text_color": "WHITE",
+        "logo_color": "PLATINUM"
+    },
+    "T3RRA": {
+        "super_headline": "BIOPHILIC RESORT LIVING",
+        "main_headline": "T3RRA: Un Santuario Biofílico\nen el Corazón de Playa",
+        "body_text": "Una obra de arte inmersa en la selva con entrega 100% lista para habitar.\nDescubra la paz prístina y el diseño exquisito a 350 metros del mar.",
+        "layout": "left",
+        "accent_color": "EMERALD",
+        "main_text_color": "WHITE",
+        "logo_color": "EMERALD"
+    },
+    "DEFAULT": {
+        "super_headline": "NUESTRA COLECCIÓN BMC",
+        "main_headline": "Lujo Extraordinario\nen la Riviera Maya.",
+        "body_text": "Un legado de prestigio.\nEl santuario perfecto para usted y su familia.\nUna exhibición pensada para el estilo de vida más sofisticado.",
+        "layout": "center"
+    }
+}
