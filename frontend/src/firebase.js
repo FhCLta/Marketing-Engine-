@@ -2,14 +2,15 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
+// Credentials loaded from environment variables (.env file)
 const firebaseConfig = {
-  apiKey: "AIzaSyCVLSe5BCxCwD0WhLRDwfKK21szMkBAiPQ",
-  authDomain: "marketing-engine-web.firebaseapp.com",
-  projectId: "marketing-engine-web",
-  storageBucket: "marketing-engine-web.firebasestorage.app",
-  messagingSenderId: "740794505815",
-  appId: "1:740794505815:web:b420f45560f2eaad01e112",
-  measurementId: "G-Y3QR0YCCFS"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

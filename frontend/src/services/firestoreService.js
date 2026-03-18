@@ -1,5 +1,5 @@
 // Firestore Services for Marketing Engine
-import { db } from './firebase';
+import { db } from '../firebase';
 import { 
   collection, 
   doc, 
