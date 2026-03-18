@@ -35,9 +35,11 @@ def root():
 @app.post("/api/render-ad")
 async def render_ad(
     image: UploadFile = File(...),
-    super_headline: str = Form(...),
+    project_name: str = Form(""),
+    location: str = Form(""),
+    super_headline: str = Form(""),
     main_headline: str = Form(...),
-    body_text: str = Form(...),
+    body_text: str = Form(""),
     layout: str = Form("left"),
     theme: str = Form("GOLDEN_LEGACY"),
     output_quality: str = Form("8k"),
@@ -45,16 +47,23 @@ async def render_ad(
     color_enhance: bool = Form(True),
     aspect_ratio: str = Form("original"),
     accent_color_hex: str = Form(None),
+    project_color_hex: str = Form(None),
     text_color_hex: str = Form(None),
     body_color_hex: str = Form(None),
     logo_color_hex: str = Form(None),
-    line_color_hex: str = Form(None)
+    line_color_hex: str = Form(None),
+    super_font_size: float = Form(1.4),
+    project_font_size: float = Form(4.0),
+    headline_font_size: float = Form(2.8),
+    body_font_size: float = Form(1.8)
 ):
     try:
         contents = await image.read()
         
         
         params = AdParameters(
+            project_name=project_name,
+            location=location,
             super_headline=super_headline,
             main_headline=main_headline,
             body_text=body_text,
@@ -65,10 +74,15 @@ async def render_ad(
             color_enhance=color_enhance,
             aspect_ratio=aspect_ratio,
             accent_color_hex=accent_color_hex,
+            project_color_hex=project_color_hex,
             text_color_hex=text_color_hex,
             body_color_hex=body_color_hex,
             logo_color_hex=logo_color_hex,
-            line_color_hex=line_color_hex
+            line_color_hex=line_color_hex,
+            super_font_size=super_font_size,
+            project_font_size=project_font_size,
+            headline_font_size=headline_font_size,
+            body_font_size=body_font_size
         )
         
         output_bytes = process_image(contents, params)

@@ -61,9 +61,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(BASE_DIR, 'assets', 'logo_transparent.png')
 
 class AdParameters(BaseModel):
-    super_headline: str
-    main_headline: str
-    body_text: str
+    # === NUEVA JERARQUÍA DE TEXTO ===
+    project_name: str = ""            # HERO - Nombre del proyecto (el más grande)
+    location: str = ""                # Ubicación opcional (Playa del Carmen, Tulum)
+    super_headline: str = ""          # Badge/categoría (opcional: PREVENTA EXCLUSIVA)
+    main_headline: str                # Tagline de impacto
+    body_text: str = ""               # Texto de apoyo (opcional)
+    
     layout: str = "left"
     theme: str = "GOLDEN_LEGACY"      # "GOLDEN_LEGACY", "HERITAGE_NAVY", etc.
     
@@ -74,10 +78,17 @@ class AdParameters(BaseModel):
     
     # Granular Color Overrides (hex strings, e.g. "#d4af37")
     accent_color_hex: Optional[str] = None
+    project_color_hex: Optional[str] = None  # Color del nombre del proyecto
     text_color_hex: Optional[str] = None
     body_color_hex: Optional[str] = None
     logo_color_hex: Optional[str] = None
     line_color_hex: Optional[str] = None
+    
+    # Font Size Multipliers (from frontend vh to backend %)
+    super_font_size: float = 1.4      # Super headline badge
+    project_font_size: float = 4.0    # Project name HERO
+    headline_font_size: float = 2.8   # Tagline
+    body_font_size: float = 1.8       # Body text
     
     # Legacy overrides
     accent_override: str = None
@@ -250,12 +261,12 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
         logo_y_pct = 0.02
         logo_h_pct = 0.13
         copy_y_start = 0.58
-        font_scale = 0.60  # Much smaller for square — text must fit width
+        font_scale = 0.85  # Ajustado para mejor consistencia con preview
     elif is_vertical:
         logo_y_pct = 0.03
         logo_h_pct = 0.10
         copy_y_start = 0.52
-        font_scale = 0.65
+        font_scale = 0.80
     else:  # landscape 16:9
         logo_y_pct = 0.02
         logo_h_pct = 0.18
@@ -291,14 +302,23 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
     font_theme = BRAND_THEMES.get(params.theme, BRAND_THEMES["GOLDEN_LEGACY"])
     font_main = FONT_SERIF if font_theme["font_family"] == "serif" else FONT_SANS
     
+    # Convert frontend vh values to height percentage
+    # Multiplicador 1.1 para compensar diferencia entre vh del viewport y % de imagen
+    super_pct = (params.super_font_size / 100.0) * 1.1
+    project_pct = (params.project_font_size / 100.0) * 1.1
+    headline_pct = (params.headline_font_size / 100.0) * 1.1
+    body_pct = (params.body_font_size / 100.0) * 1.1
+    
     try:
         f_logo_title = ImageFont.truetype(FONT_SERIF, int(height * 0.040 * font_scale))
         f_logo_sub   = ImageFont.truetype(FONT_SANS,  int(height * 0.015 * font_scale))
-        f_super      = ImageFont.truetype(FONT_SANS,  int(height * 0.032 * font_scale))
-        f_title      = ImageFont.truetype(font_main,  int(height * 0.075 * font_scale))
-        f_body       = ImageFont.truetype(FONT_SANS,  int(height * 0.028 * font_scale))
+        f_location   = ImageFont.truetype(FONT_SANS,  int(height * 0.020 * font_scale))  # Ubicación (sutil)
+        f_super      = ImageFont.truetype(FONT_SANS,  int(height * super_pct * font_scale))  # Badge (dinámico)
+        f_project    = ImageFont.truetype(font_main,  int(height * project_pct * font_scale))  # PROJECT NAME (HERO)
+        f_title      = ImageFont.truetype(font_main,  int(height * headline_pct * font_scale))  # Tagline
+        f_body       = ImageFont.truetype(FONT_SANS,  int(height * body_pct * font_scale))  # Body text
     except:
-        f_logo_title = f_logo_sub = f_super = f_title = f_body = ImageFont.load_default()
+        f_logo_title = f_logo_sub = f_location = f_super = f_project = f_title = f_body = ImageFont.load_default()
 
     margin_x = width * 0.08
 
@@ -431,61 +451,79 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
         y_logo = draw_centered_text(y_logo + 5, "CAPITAL", f_logo_sub, theme_cfg["body"])
         state['draw'].line([(width/2 - 50, y_logo + 15), (width/2 + 50, y_logo + 15)], fill=theme_cfg["accent"], width=2)
 
-    # ═══ STEP 4: COPY TEXT ═══
+    # ═══ STEP 4: COPY TEXT (Nueva Jerarquía v2) ═══
     current_y = height * copy_y_start
     align_mode = params.layout.lower()
     
     # Start with theme defaults, then apply granular overrides
     accent = hex_to_rgba(params.accent_color_hex) or theme_cfg["accent"]
     super_color = accent
+    project_text_color = hex_to_rgba(params.project_color_hex) or hex_to_rgba(params.text_color_hex) or theme_cfg["headline"]
     main_text_color = hex_to_rgba(params.text_color_hex) or theme_cfg["headline"]
     body_text_color = hex_to_rgba(params.body_color_hex) or theme_cfg["body"]
     line_color = hex_to_rgba(params.line_color_hex) or accent
     
+    # Location color (sutil, gris claro)
+    location_color = (180, 180, 180, 255)
+    
     # DEBUG: print color values
     print(f"\n--- IMAGE PROCESSOR DEBUG ---")
-    print(f"Params: accent={params.accent_color_hex}, text={params.text_color_hex}, body={params.body_color_hex}, logo={params.logo_color_hex}, line={params.line_color_hex}")
-    print(f"Resolved: accent={accent}, main_text={main_text_color}, body={body_text_color}, line={line_color}")
+    print(f"Project: {params.project_name}, Location: {params.location}")
+    print(f"Params: accent={params.accent_color_hex}, text={params.text_color_hex}")
     print(f"-----------------------------\n")
 
-    # Super headline (accent color, with subtle shadow)
-    current_y = draw_dynamic_text(current_y, params.super_headline, f_super, super_color, align_mode, use_shadow=True)
+    # ─── 1. LOCATION (opcional, sutil) ───
+    if params.location and params.location.strip():
+        location_text = params.location.upper()
+        current_y = draw_dynamic_text(current_y, location_text, f_location, location_color, align_mode, use_shadow=False)
+        current_y += height * 0.008
     
-    # Premium accent line with glow
-    current_y += height * 0.015
-    line_w = width * 0.08
-    line_thickness = max(2, int(height * 0.0012))
+    # ─── 2. SUPER HEADLINE (badge) + LÍNEA DECORATIVA (opcionales) ───
+    if params.super_headline and params.super_headline.strip():
+        current_y = draw_dynamic_text(current_y, params.super_headline, f_super, super_color, align_mode, use_shadow=True)
+        
+        # ─── 3. LÍNEA DECORATIVA (solo si hay super_headline) ───
+        current_y += height * 0.012
+        line_w = width * 0.06
+        line_thickness = max(2, int(height * 0.001))
+        
+        # Glow effect behind the line
+        glow_layer = Image.new('RGBA', state['img'].size, (0, 0, 0, 0))
+        glow_draw = ImageDraw.Draw(glow_layer)
+        glow_color = (line_color[0], line_color[1], line_color[2], 40)
+        
+        if align_mode == 'center':
+            lx = width/2 - line_w/2
+        elif align_mode == 'right':
+            lx = width - margin_x - line_w
+        else:
+            lx = margin_x
+        
+        # Draw glow
+        for offset in range(1, max(3, int(height * 0.003))):
+            glow_draw.line([(lx, current_y - offset), (lx + line_w, current_y - offset)], fill=glow_color, width=1)
+            glow_draw.line([(lx, current_y + offset), (lx + line_w, current_y + offset)], fill=glow_color, width=1)
+        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=max(2, int(height * 0.002))))
+        state['img'] = Image.alpha_composite(state['img'], glow_layer)
+        state['draw'] = ImageDraw.Draw(state['img'])
+        
+        # Solid accent line
+        state['draw'].line([(lx, current_y), (lx + line_w, current_y)], fill=line_color, width=line_thickness)
+        current_y += height * 0.018
     
-    # Glow effect behind the line
-    glow_layer = Image.new('RGBA', state['img'].size, (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow_layer)
-    glow_color = (line_color[0], line_color[1], line_color[2], 40)
+    # ─── 4. PROJECT NAME (HERO - el más grande) ───
+    if params.project_name and params.project_name.strip():
+        project_display = params.project_name.upper()  # Sin letter-spacing excesivo
+        current_y = draw_dynamic_text(current_y, project_display, f_project, project_text_color, align_mode, use_shadow=True)
+        current_y += height * 0.012
     
-    if align_mode == 'center':
-        lx = width/2 - line_w/2
-    elif align_mode == 'right':
-        lx = width - margin_x - line_w
-    else:
-        lx = margin_x
-    
-    # Draw glow
-    for offset in range(1, max(3, int(height * 0.003))):
-        glow_draw.line([(lx, current_y - offset), (lx + line_w, current_y - offset)], fill=glow_color, width=1)
-        glow_draw.line([(lx, current_y + offset), (lx + line_w, current_y + offset)], fill=glow_color, width=1)
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=max(2, int(height * 0.002))))
-    state['img'] = Image.alpha_composite(state['img'], glow_layer)
-    state['draw'] = ImageDraw.Draw(state['img'])
-    
-    # Solid accent line
-    state['draw'].line([(lx, current_y), (lx + line_w, current_y)], fill=line_color, width=line_thickness)
-    current_y += height * 0.02
-    
-    # Main headline (with shadow for maximum legibility)
+    # ─── 5. MAIN HEADLINE (tagline) ───
     current_y = draw_dynamic_text(current_y, params.main_headline, f_title, main_text_color, align_mode, use_shadow=True)
-    current_y += height * 0.015
+    current_y += height * 0.010
     
-    # Body text (with subtle shadow)
-    current_y = draw_dynamic_text(current_y, params.body_text, f_body, body_text_color, align_mode, use_shadow=True)
+    # ─── 6. BODY TEXT (opcional) ───
+    if params.body_text and params.body_text.strip():
+        current_y = draw_dynamic_text(current_y, params.body_text, f_body, body_text_color, align_mode, use_shadow=True)
 
     # ═══ STEP 5: EXPORT AT MAXIMUM QUALITY ═══
     out_io = BytesIO()

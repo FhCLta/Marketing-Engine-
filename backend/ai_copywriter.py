@@ -563,7 +563,7 @@ REGLAS ESTRICTAS DE FORMATO:
 
 FORMATOS DE SALIDA:
 - super_headline: 1-3 palabras en MAYÚSCULAS. Badge sutil. Ej: 'PREVENTA EXCLUSIVA'
-- main_headline: Frase contundente, 5-7 palabras máximo. Elegante y memorable.
+- main_headline: SOLO el tagline/eslogan, SIN incluir el nombre del proyecto. El nombre se muestra por separado en la imagen como elemento HERO. Debe ser aspiracional, 4-7 palabras. Ej: 'Tu Santuario Vital', 'Donde el Lujo Encuentra la Naturaleza'.
 - body_text: 1-2 líneas breves de apoyo. Valor concreto o diferenciador."""
         
         # Prompt específico según el tono
@@ -601,7 +601,7 @@ Contexto adicional: {additional_context}
 
 {tone_specific_instructions.get(tone, tone_specific_instructions['balanced'])}
 
-IMPORTANTE: Las 3 variantes DEBEN mencionar o insinuar el nombre '{project_name}'.
+IMPORTANTE: NO incluyas el nombre '{project_name}' en el main_headline - se mostrará por separado como elemento HERO en la imagen. El main_headline debe ser SOLO el tagline.
 Genera copy ESPECTACULAR que haga detenerse a quien lo vea.
 
 Devuelve JSON puro con estructura: {{"variantes": [{{"super_headline": "...", "main_headline": "...", "body_text": "..."}}]}}"""

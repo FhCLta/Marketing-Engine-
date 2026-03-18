@@ -21,6 +21,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('upload') // 'upload' or 'generate'
   const [imagePrompt, setImagePrompt] = useState("")
   const [projectContext, setProjectContext] = useState("")
+  const [projectLocation, setProjectLocation] = useState("")
   const [socialVariants, setSocialVariants] = useState([])
   const [currentVariantIndex, setCurrentVariantIndex] = useState(0)
   const [showSocialModal, setShowSocialModal] = useState(false)
@@ -29,7 +30,7 @@ function App() {
   const [adVariants, setAdVariants] = useState([])
   const [currentAdVariantIndex, setCurrentAdVariantIndex] = useState(0)
   const [superHeadline, setSuperHeadline] = useState("ULTRA LUXURY LIVING")
-  const [mainHeadline, setMainHeadline] = useState("Brisa Maya Capital")
+  const [mainHeadline, setMainHeadline] = useState("Tu Refugio de Inversión y Bienestar")
   const [bodyText, setBodyText] = useState("Invierte en el futuro del Caribe Mexicano con los más altos estándares de calidad y exclusividad.")
   
   // Copy Tone Selector
@@ -45,8 +46,15 @@ function App() {
   // Design Settings State
   const [layout, setLayout] = useState("center")
   
+  // Font Size Controls (vh units for preview, sent as multiplier to backend)
+  const [superFontSize, setSuperFontSize] = useState(1.4)       // Super headline badge
+  const [projectFontSize, setProjectFontSize] = useState(4.0)   // Project name HERO
+  const [headlineFontSize, setHeadlineFontSize] = useState(2.8) // Tagline
+  const [bodyFontSize, setBodyFontSize] = useState(1.8)         // Body text
+  
   // Granular Color Controls (replaces fixed themes)
   const [accentColor, _setAccentColor] = useState("#d4af37")
+  const [projectColor, _setProjectColor] = useState("#ffffff")  // Color del nombre del proyecto
   const [textColor, _setTextColor] = useState("#ffffff")
   const [bodyColor, _setBodyColor] = useState("#cccccc")
   const [logoColor, _setLogoColor] = useState("#d4af37")
@@ -54,6 +62,7 @@ function App() {
   
   // Auto-clear rendered image when any color changes → live preview
   const setAccentColor = (v) => { _setAccentColor(v); setRenderedImage(null) }
+  const setProjectColor = (v) => { _setProjectColor(v); setRenderedImage(null) }
   const setTextColor = (v) => { _setTextColor(v); setRenderedImage(null) }
   const setBodyColor = (v) => { _setBodyColor(v); setRenderedImage(null) }
   const setLogoColor = (v) => { _setLogoColor(v); setRenderedImage(null) }
@@ -191,6 +200,8 @@ function App() {
       formData.append("super_headline", superHeadline)
       formData.append("main_headline", mainHeadline)
       formData.append("body_text", bodyText)
+      formData.append("project_name", projectContext)
+      formData.append("location", projectLocation)
       formData.append("layout", layout)
       formData.append("theme", "GOLDEN_LEGACY")
       formData.append("output_quality", outputQuality)
@@ -198,10 +209,15 @@ function App() {
       formData.append("color_enhance", "true")
       formData.append("aspect_ratio", aspectRatio)
       formData.append("accent_color_hex", accentColor)
+      formData.append("project_color_hex", projectColor)
       formData.append("text_color_hex", textColor)
       formData.append("body_color_hex", bodyColor)
       formData.append("logo_color_hex", logoColor)
       formData.append("line_color_hex", lineColor)
+      formData.append("super_font_size", superFontSize.toString())
+      formData.append("project_font_size", projectFontSize.toString())
+      formData.append("headline_font_size", headlineFontSize.toString())
+      formData.append("body_font_size", bodyFontSize.toString())
 
       const response = await fetch("http://localhost:8000/api/render-ad", {
         method: "POST",
@@ -353,6 +369,8 @@ function App() {
       formData.append("super_headline", superHeadline)
       formData.append("main_headline", mainHeadline)
       formData.append("body_text", bodyText)
+      formData.append("project_name", projectContext)
+      formData.append("location", projectLocation)
       formData.append("layout", layout)
       formData.append("theme", "GOLDEN_LEGACY")
       formData.append("output_quality", outputQuality)
@@ -360,10 +378,15 @@ function App() {
       formData.append("color_enhance", "true")
       formData.append("aspect_ratio", aspectRatio)
       formData.append("accent_color_hex", accentColor)
+      formData.append("project_color_hex", projectColor)
       formData.append("text_color_hex", textColor)
       formData.append("body_color_hex", bodyColor)
       formData.append("logo_color_hex", logoColor)
       formData.append("line_color_hex", lineColor)
+      formData.append("super_font_size", superFontSize.toString())
+      formData.append("project_font_size", projectFontSize.toString())
+      formData.append("headline_font_size", headlineFontSize.toString())
+      formData.append("body_font_size", bodyFontSize.toString())
 
       const response = await fetch("http://localhost:8000/api/render-ad", {
         method: "POST",
@@ -536,6 +559,14 @@ function App() {
               +
             </button>
           </div>
+          <input 
+            type="text" 
+            className="form-input" 
+            placeholder="📍 Ubicación (opcional): Tulum, México"
+            value={projectLocation}
+            onChange={(e) => setProjectLocation(e.target.value)}
+            style={{ marginTop: '6px', fontSize: '0.85rem' }}
+          />
         </div>
 
         {/* SELECTOR DE TONO PARA COPY */}
@@ -644,6 +675,63 @@ function App() {
           />
         </div>
 
+        {/* Font Size Controls */}
+        <div className="form-group glass-card" style={{ padding: '12px', borderRadius: '12px', marginBottom: '1rem' }}>
+          <label className="form-label" style={{color: '#a78bfa', fontSize: '0.75rem', letterSpacing: '1px', marginBottom: '10px'}}>
+            📐 TAMAÑOS DE TEXTO
+          </label>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Badge</span>
+              <input 
+                type="range" 
+                min="0.8" max="3" step="0.1"
+                value={superFontSize}
+                onChange={(e) => setSuperFontSize(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: '#d4af37' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{superFontSize}vh</span>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Proyecto</span>
+              <input 
+                type="range" 
+                min="2" max="7" step="0.2"
+                value={projectFontSize}
+                onChange={(e) => setProjectFontSize(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: '#d4af37' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{projectFontSize}vh</span>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Tagline</span>
+              <input 
+                type="range" 
+                min="1.5" max="5" step="0.2"
+                value={headlineFontSize}
+                onChange={(e) => setHeadlineFontSize(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: '#d4af37' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{headlineFontSize}vh</span>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Body</span>
+              <input 
+                type="range" 
+                min="1" max="3" step="0.1"
+                value={bodyFontSize}
+                onChange={(e) => setBodyFontSize(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: '#d4af37' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{bodyFontSize}vh</span>
+            </div>
+          </div>
+        </div>
+
         <div className="form-group glass-card" style={{ padding: '15px', borderRadius: '12px', marginBottom: '1.5rem' }}>
           <label className="form-label" style={{color: '#d4af37', fontSize: '0.8rem', letterSpacing: '1px'}}>IDENTIDAD VISUAL</label>
           
@@ -652,6 +740,7 @@ function App() {
               { label: 'Logo', value: logoColor, setter: setLogoColor },
               { label: 'Acento', value: accentColor, setter: setAccentColor },
               { label: 'Línea', value: lineColor, setter: setLineColor },
+              { label: 'Proyecto', value: projectColor, setter: setProjectColor },
               { label: 'Texto', value: textColor, setter: setTextColor },
               { label: 'Body', value: bodyColor, setter: setBodyColor },
             ].map(ctrl => (
@@ -791,21 +880,63 @@ function App() {
                 </div>
 
                 <div className="lp-bottom" style={{ transform: 'translateY(-2vh)' }}>
-                  <div className="lp-super" style={{ color: accentColor }}>
-                    {superHeadline}
-                  </div>
-                  <div className="lp-line" style={{ 
-                    backgroundColor: lineColor,
-                    boxShadow: `0 0 8px ${lineColor}66, 0 0 20px ${lineColor}33`,
-                    marginLeft: layout === 'right' ? 'auto' : layout === 'center' ? 'auto' : '0',
-                    marginRight: layout === 'left' ? 'auto' : layout === 'center' ? 'auto' : '0',
-                  }} />
-                  <div className="lp-main" style={{ color: textColor }}>
+                  {/* Location (opcional) */}
+                  {projectLocation && (
+                    <div style={{ 
+                      color: '#b0b0b0', 
+                      fontSize: '1.1vh', 
+                      letterSpacing: '2px', 
+                      marginBottom: '0.5vh',
+                      textTransform: 'uppercase',
+                      textAlign: layout === 'center' ? 'center' : layout === 'right' ? 'right' : 'left'
+                    }}>
+                      {projectLocation}
+                    </div>
+                  )}
+                  
+                  {/* Super Headline (badge) - opcional */}
+                  {superHeadline && superHeadline.trim() && (
+                    <>
+                      <div className="lp-super" style={{ color: accentColor, fontSize: `${superFontSize}vh` }}>
+                        {superHeadline}
+                      </div>
+                      
+                      {/* Línea decorativa - solo si hay super_headline */}
+                      <div className="lp-line" style={{ 
+                        backgroundColor: lineColor,
+                        boxShadow: `0 0 8px ${lineColor}66, 0 0 20px ${lineColor}33`,
+                        marginLeft: layout === 'right' ? 'auto' : layout === 'center' ? 'auto' : '0',
+                        marginRight: layout === 'left' ? 'auto' : layout === 'center' ? 'auto' : '0',
+                      }} />
+                    </>
+                  )}
+                  
+                  {/* Project Name (HERO - el más grande) */}
+                  {projectContext && (
+                    <div style={{ 
+                      color: projectColor, 
+                      fontSize: `${projectFontSize}vh`, 
+                      fontFamily: 'Playfair Display, Georgia, serif',
+                      fontWeight: '400',
+                      marginBottom: '0.8vh',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                      textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+                      textAlign: layout === 'center' ? 'center' : layout === 'right' ? 'right' : 'left'
+                    }}>
+                      {projectContext}
+                    </div>
+                  )}
+                  
+                  {/* Main Headline (tagline) */}
+                  <div className="lp-main" style={{ color: textColor, fontSize: `${headlineFontSize}vh` }}>
                     {mainHeadline.split('\n').map((line, i) => (
                       <div key={i}>{line}</div>
                     ))}
                   </div>
-                  <div className="lp-body" style={{ color: bodyColor }}>
+                  
+                  {/* Body Text */}
+                  <div className="lp-body" style={{ color: bodyColor, fontSize: `${bodyFontSize}vh` }}>
                     {bodyText}
                   </div>
                 </div>
