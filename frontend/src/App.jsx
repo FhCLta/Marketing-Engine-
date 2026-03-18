@@ -32,6 +32,16 @@ function App() {
   const [mainHeadline, setMainHeadline] = useState("Brisa Maya Capital")
   const [bodyText, setBodyText] = useState("Invierte en el futuro del Caribe Mexicano con los más altos estándares de calidad y exclusividad.")
   
+  // Copy Tone Selector
+  const [copyTone, setCopyTone] = useState("balanced")
+  const COPY_TONES = [
+    { id: 'investment', name: '💰 Inversión', desc: 'ROI, plusvalía, activo patrimonial' },
+    { id: 'lifestyle', name: '🌴 Lifestyle', desc: 'Experiencia, bienestar, legado familiar' },
+    { id: 'urgency', name: '⚡ Urgencia', desc: 'Escasez, últimas unidades, oportunidad' },
+    { id: 'luxury', name: '👑 Ultra Lujo', desc: 'Exclusividad, privacidad, estatus' },
+    { id: 'balanced', name: '⚖️ Balanceado', desc: 'Mix equilibrado de todos los ángulos' },
+  ]
+  
   // Design Settings State
   const [layout, setLayout] = useState("center")
   
@@ -237,7 +247,8 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           project_name: projectContext,
-          context: "" // Puedes añadir más campos aquí en el futuro
+          context: "",
+          tone: copyTone // Tono seleccionado por el usuario
         })
       })
       
@@ -525,6 +536,35 @@ function App() {
               +
             </button>
           </div>
+        </div>
+
+        {/* SELECTOR DE TONO PARA COPY */}
+        <div className="form-group" style={{ marginBottom: '12px' }}>
+          <label className="form-label" style={{ fontSize: '0.7rem', color: '#a78bfa', letterSpacing: '1px' }}>
+            🎯 TONO DEL COPY
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {COPY_TONES.map(tone => (
+              <button
+                key={tone.id}
+                className={`btn ${copyTone === tone.id ? 'btn-ai' : 'btn-secondary'}`}
+                style={{ 
+                  flex: '1 1 calc(50% - 3px)', 
+                  padding: '8px 6px', 
+                  fontSize: '0.75rem',
+                  minWidth: '100px',
+                  border: copyTone === tone.id ? '1px solid #8b5cf6' : '1px solid rgba(255,255,255,0.1)'
+                }}
+                onClick={() => setCopyTone(tone.id)}
+                title={tone.desc}
+              >
+                {tone.name}
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px', textAlign: 'center' }}>
+            {COPY_TONES.find(t => t.id === copyTone)?.desc}
+          </p>
         </div>
 
         <div className="form-group" style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>

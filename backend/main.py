@@ -3,6 +3,17 @@ from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
+import os
+
+# Cargar .env manualmente si existe
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_path):
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key.strip()] = value.strip()
 
 from image_processor import process_image, AdParameters
 from ai_copywriter import generate_spectacular_copy, get_project_color_scheme, AICopyRequest, generate_social_posts
@@ -112,7 +123,8 @@ async def enhance_only(
 
 @app.post("/api/generate-copy")
 async def generate_copy(request: AICopyRequest):
-    res = generate_spectacular_copy(request.project_name, request.context)
+    print(f"🎯 DEBUG: Tono recibido = '{request.tone}'")  # DEBUG
+    res = generate_spectacular_copy(request.project_name, request.context, request.tone)
     color_scheme = get_project_color_scheme(request.project_name)
     return {
         "variantes": res.get("variantes", []),

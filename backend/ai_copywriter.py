@@ -22,9 +22,52 @@ class AICopyResponse(BaseModel):
 class AICopyRequest(BaseModel):
     project_name: str
     context: str = ""
+    tone: str = "balanced"  # investment, lifestyle, urgency, luxury, balanced
 
 # ═══════════════════════════════════════════════════════════════════
-# ESQUEMAS CROMÁTICOS POR PROYECTO (Manual de Producción Visual BMC)
+# TONOS DE COPY — Configuración de ángulos por tono
+# ═══════════════════════════════════════════════════════════════════
+
+TONE_CONFIGS = {
+    "investment": {
+        "name": "Inversión",
+        "focus": "ROI, plusvalía, activo patrimonial, resiliencia financiera, liquidez",
+        "emotion": "Seguridad y crecimiento del patrimonio",
+        "keywords": ["plusvalía", "ROI", "activo", "patrimonio", "inversión inteligente", "rendimiento"],
+        "avoid": ["emocional", "sueños", "escape"],
+    },
+    "lifestyle": {
+        "name": "Lifestyle",
+        "focus": "Experiencia de vida, bienestar, legado familiar, memorias, conexión con la naturaleza",
+        "emotion": "Aspiración, pertenencia y trascendencia familiar",
+        "keywords": ["refugio", "santuario", "legado", "bienestar", "experiencia", "vida plena"],
+        "avoid": ["números", "porcentajes", "finanzas"],
+    },
+    "urgency": {
+        "name": "Urgencia",
+        "focus": "Escasez de inventario, últimas unidades, oportunidad limitada, ventana de tiempo",
+        "emotion": "FOMO (miedo a perder la oportunidad)",
+        "keywords": ["últimas", "escasez", "ahora", "oportunidad única", "no espere", "cierre"],
+        "avoid": ["calma", "tómese su tiempo", "sin prisa"],
+    },
+    "luxury": {
+        "name": "Ultra Lujo",
+        "focus": "Exclusividad absoluta, privacidad, estatus, colección limitada, diseño de autor",
+        "emotion": "Superioridad silenciosa y distinción",
+        "keywords": ["exclusivo", "privacidad", "élite", "colección", "único", "incomparable"],
+        "avoid": ["accesible", "económico", "para todos"],
+    },
+    "balanced": {
+        "name": "Balanceado",
+        "focus": "Mix equilibrado de inversión, lifestyle y exclusividad",
+        "emotion": "Sofisticación integral",
+        "keywords": ["refugio", "plusvalía", "diseño", "ubicación", "oportunidad"],
+        "avoid": [],
+    },
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# PROJECT COLOR SCHEMES — Paletas de color por proyecto
 # ═══════════════════════════════════════════════════════════════════
 
 PROJECT_COLOR_SCHEMES = {
@@ -441,12 +484,16 @@ def find_copy_bank_match(project_name):
             return key
     return None
 
-def generate_spectacular_copy(project_name: str, additional_context: str = "") -> dict:
+def generate_spectacular_copy(project_name: str, additional_context: str = "", tone: str = "balanced") -> dict:
     """
     Pipeline de generación de copy para imágenes con 3 variantes.
+    Ahora con soporte para tonos: investment, lifestyle, urgency, luxury, balanced
     """
     db = load_project_database()
     project_info = find_project_match(project_name, db)
+    
+    # Obtener configuración del tono
+    tone_config = TONE_CONFIGS.get(tone, TONE_CONFIGS["balanced"])
     
     bank_key = find_copy_bank_match(project_name)
     base_variants = []
@@ -480,56 +527,90 @@ def generate_spectacular_copy(project_name: str, additional_context: str = "") -
     
     # Si no hay API Key o Gemini falla, devolvemos 3 variantes del banco o genéricas
     def get_fallback():
+        print(f"⚠️ Usando fallback para {project_name}")
         return {"variantes": [v for v in base_variants[:3]]}
 
     if not api_key:
+        print("❌ No hay GEMINI_API_KEY configurada")
         return get_fallback()
+
+    print(f"🎯 Generando copy para '{project_name}' con tono '{tone}'")
+    print(f"📋 Tone config: {tone_config['name']} - {tone_config['focus'][:50]}...")
 
     try:
         client = genai.Client(api_key=api_key)
         
-        system_instruction = (
-            "ROL Y PERSONA:\n"
-            "Actúa como el Copywriter y Director de Arte Principal de 'Brisa Maya Capital', una firma de corretaje inmobiliario premium en la Riviera Maya. Tu objetivo es redactar textos creativos, poéticos, elegantes y de altísimo impacto visual que serán colocados DIRECTAMENTE SOBRE IMÁGENES (renders, fotografías de proyectos, publicidad gráfica).\n\n"
-            "IDENTIDAD DE MARCA (BRISA MAYA CAPITAL):\n"
-            "- Tono: Sofisticado, inspirador, exclusivo, estético, aspiracional y sumamente emotivo (despierta el deseo).\n"
-            "- Prohibido: Sonar a vendedor tradicional, usar lenguaje saturado o texto excesivo.\n"
-            "- Conceptos Clave a integrar con elegancia: Descanso absoluto, Trascendencia Familiar, Plusvalía, Refugio, Estilo de Vida, Belleza Natural, Ubicación Irreemplazable.\n\n"
-            "REGLAS ESTRICTAS DE FORMATO Y PALABRAS (¡CRÍTICO PARA EL DISEÑO!):\n"
-            "- PALABRAS ESTRICTAMENTE PROHIBIDAS: BAJO NINGUNA CIRCUNSTANCIA uses palabras como 'Institucional', 'Inversionista Calificado', 'Inversionistas calificados', 'Estructuración', o 'Capex'. Suenan frías, secas y arruinan la estética visual del diseño. Queremos evocar deseo y belleza.\n"
-            "- ESTRICTAMENTE PROHIBIDO USAR EMOJIS: El texto irá sobre un diseño gráfico profesional de lujo.\n"
-            "- ESTRICTAMENTE PROHIBIDO USAR HASHTAGS: No es texto para pie de foto.\n"
-            "- CERO LLAMADOS A LA ACCIÓN DE REDES SOCIALES: No incluyas frases como 'Manda DM', 'Comenta', o 'Haz clic en el enlace'.\n"
-            "- LONGITUD Y LEGIBILIDAD: Los textos deben ser sumamente concisos, bellos y fáciles de leer a simple vista. Son titulares para publicidad visual.\n\n"
-            "INSTRUCCIONES DE ANÁLISIS DE ENTRADA (INPUT):\n"
-            "Al recibir el contexto:\n"
-            "1. Analiza el contexto visual (arquitectura, luz, lujo, vistas, amenidades).\n"
-            "2. Identifica la Propuesta Única de Valor (USP) que mejor encaje con la atmósfera de la imagen.\n\n"
-            "Formatos Obligatorios a Devolver (STRICT JSON, Mapeados a la maqueta de la UI):\n"
-            "- super_headline: Mapea al '[TEXTO DE CIERRE / BADGE]'. 1 a 3 palabras para un detalle sutil en la imagen. EJ: 'PREVENTA EXCLUSIVA', 'EL NUEVO ÍCONO'. SIEMPRE EN MAYÚSCULAS.\n"
-            "- main_headline: Mapea al '[TITULAR PRINCIPAL]'. Frase contundente, elegante y breve (máximo 5 a 7 palabras).\n"
-            "- body_text: Mapea al '[SUBTÍTULO / TEXTO DE APOYO]'. Una o dos líneas muy breves que justifiquen el titular aportando valor financiero o de ubicación. En el enfoque minimalista omite lo más posible.\n"
-        )
-        
-        prompt = (
-            f"Proyecto: {project_name}\n"
-            f"Datos del proyecto: {json.dumps(project_info)}\n"
-            f"Contexto adicional (Descripción de Imagen/Render o Texto Adicional): {additional_context}\n\n"
-            "ESTRUCTURA DEL ENTREGABLE:\n"
-            f"Genera siempre 3 OPCIONES distintas de 'Copy Overlay' (texto para superponer en el diseño). Asegúrate de que TODAS mencionen o insinuen explícitamente el nombre del proyecto '{project_name}'.\n"
-            "Cada variante DEBE seguir exactamente este orden en el JSON de salida:\n\n"
-            "OPCIÓN 1 (varianteres_json['variantes'][0]): ENFOQUE INVERSIONISTA Y PATRIMONIAL (Foco en resiliencia y capital)\n"
-            "OPCIÓN 2 (varianteres_json['variantes'][1]): ENFOQUE ESTILO DE VIDA Y LEGADO (Foco en el deseo, la experiencia y la familia)\n"
-            "OPCIÓN 3 (varianteres_json['variantes'][2]): ENFOQUE MINIMALISTA Y DIRECTO (Para imágenes muy detalladas donde el texto no debe estorbar, frases de impacto absoluto de 2-4 palabras máximo, super_headline super sutil).\n\n"
-            "Devuelve la respuesta PURAMENTE en formato JSON plano sin bloques de código ```json o etiquetas."
-        )
+        # System instruction mejorado con soporte de tonos
+        system_instruction = f"""ROL Y PERSONA:
+Actúa como el Copywriter y Director de Arte Principal de 'Brisa Maya Capital', una firma de corretaje inmobiliario premium en la Riviera Maya. Tu objetivo es redactar textos creativos, poéticos, elegantes y de altísimo impacto visual que serán colocados DIRECTAMENTE SOBRE IMÁGENES.
 
-        # Usar Strict JSON Schema en Gemini 2.0
+IDENTIDAD DE MARCA (BRISA MAYA CAPITAL):
+- Tono: Sofisticado, inspirador, exclusivo, estético, aspiracional y sumamente emotivo.
+- Prohibido: Sonar a vendedor tradicional, usar lenguaje saturado o texto excesivo.
+
+═══════════════════════════════════════════════════════════════════
+🎯 TONO SOLICITADO: {tone_config['name'].upper()}
+═══════════════════════════════════════════════════════════════════
+ENFOQUE PRINCIPAL: {tone_config['focus']}
+EMOCIÓN A EVOCAR: {tone_config['emotion']}
+PALABRAS CLAVE A USAR: {', '.join(tone_config['keywords'])}
+{'EVITAR: ' + ', '.join(tone_config['avoid']) if tone_config['avoid'] else ''}
+
+REGLAS ESTRICTAS DE FORMATO:
+- PALABRAS PROHIBIDAS: 'Institucional', 'Inversionista Calificado', 'Estructuración', 'Capex'.
+- PROHIBIDO: Emojis, hashtags, llamados a acción de redes sociales.
+- LONGITUD: Textos concisos, bellos y fáciles de leer. Son titulares visuales.
+
+FORMATOS DE SALIDA:
+- super_headline: 1-3 palabras en MAYÚSCULAS. Badge sutil. Ej: 'PREVENTA EXCLUSIVA'
+- main_headline: Frase contundente, 5-7 palabras máximo. Elegante y memorable.
+- body_text: 1-2 líneas breves de apoyo. Valor concreto o diferenciador."""
+        
+        # Prompt específico según el tono
+        tone_specific_instructions = {
+            "investment": """
+VARIANTES A GENERAR (todas con enfoque INVERSIÓN):
+1. ENFOQUE ROI: Plusvalía, rendimiento, activo patrimonial
+2. ENFOQUE SEGURIDAD: Resiliencia, protección de capital, diversificación
+3. ENFOQUE OPORTUNIDAD: Timing de mercado, ventana de entrada, momentum""",
+            "lifestyle": """
+VARIANTES A GENERAR (todas con enfoque LIFESTYLE):
+1. ENFOQUE BIENESTAR: Paz, naturaleza, desconexión, wellness
+2. ENFOQUE LEGADO: Familia, memorias, trascendencia generacional
+3. ENFOQUE EXPERIENCIA: Vivencias únicas, sensaciones, el arte de vivir""",
+            "urgency": """
+VARIANTES A GENERAR (todas con enfoque URGENCIA):
+1. ENFOQUE ESCASEZ: Últimas unidades, inventario limitado
+2. ENFOQUE TIEMPO: Ventana de oportunidad, precios de lanzamiento
+3. ENFOQUE FOMO: Lo que otros ya aseguraron, cierre inminente""",
+            "luxury": """
+VARIANTES A GENERAR (todas con enfoque ULTRA LUJO):
+1. ENFOQUE EXCLUSIVIDAD: Membresía selecta, acceso privado
+2. ENFOQUE DISEÑO: Arquitectura de autor, materiales nobles
+3. ENFOQUE ESTATUS: Privacidad absoluta, el círculo más selecto""",
+            "balanced": """
+VARIANTES A GENERAR (MIX EQUILIBRADO):
+1. ENFOQUE INVERSIÓN + LIFESTYLE: Patrimonio que se disfruta
+2. ENFOQUE EXCLUSIVIDAD + UBICACIÓN: Posición única e irrepetible  
+3. ENFOQUE MINIMALISTA: Impacto visual máximo con mínimo texto"""
+        }
+        
+        prompt = f"""Proyecto: {project_name}
+Datos del proyecto: {json.dumps(project_info)}
+Contexto adicional: {additional_context}
+
+{tone_specific_instructions.get(tone, tone_specific_instructions['balanced'])}
+
+IMPORTANTE: Las 3 variantes DEBEN mencionar o insinuar el nombre '{project_name}'.
+Genera copy ESPECTACULAR que haga detenerse a quien lo vea.
+
+Devuelve JSON puro con estructura: {{"variantes": [{{"super_headline": "...", "main_headline": "...", "body_text": "..."}}]}}"""
+
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_instruction,
-                temperature=0.7,
+                temperature=0.8,  # Un poco más creativo
                 response_mime_type="application/json",
                 response_schema={
                     "type": "object",
