@@ -193,7 +193,7 @@ function App() {
       formData.append("body_text", bodyText)
       formData.append("layout", layout)
       formData.append("theme", "GOLDEN_LEGACY")
-      formData.append("output_quality", "4k")
+      formData.append("output_quality", outputQuality)
       formData.append("output_format", "jpeg")
       formData.append("color_enhance", "true")
       formData.append("aspect_ratio", aspectRatio)

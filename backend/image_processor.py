@@ -87,7 +87,8 @@ class AdParameters(BaseModel):
 def _adapt_to_aspect_ratio(img: Image.Image, aspect_ratio: str, quality: str) -> Image.Image:
     """Smart crop and resize image to target aspect ratio."""
     if aspect_ratio == 'original':
-        return _upscale_to_target(img, quality, img.width, img.height)
+        # Escalar manteniendo el ratio original pero a resolución 8K/4K
+        return _upscale_to_target(img, quality, img.width, img.height, keep_original_ratio=True)
     
     # Get target dimensions for the chosen aspect ratio and quality
     ratio_config = ASPECT_RATIOS.get(aspect_ratio, ASPECT_RATIOS['16:9'])
