@@ -14,6 +14,31 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, 'assets', 'Database_Proyectos_BMC.json')
 
+# ═══════════════════════════════════════════════════════════════════
+# MODELOS DISPONIBLES — Google AI API
+# ═══════════════════════════════════════════════════════════════════
+
+CHAT_MODELS = [
+    {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "desc": "Rápido y eficiente"},
+    {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "desc": "Más preciso y detallado"},
+    {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "desc": "Ultra rápido"},
+    {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "desc": "Nueva generación"},
+    {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro Preview", "desc": "Máxima calidad"},
+    {"id": "gemini-3.1-flash-lite-preview", "name": "Gemini 3.1 Flash Lite", "desc": "Experimental"},
+    {"id": "gemini-3.1-pro-preview", "name": "Gemini 3.1 Pro Preview", "desc": "Última versión"},
+]
+
+IMAGE_MODELS = [
+    # Imagen 4 - Última generación (requiere endpoint predict)
+    {"id": "imagen-4.0-ultra-generate-001", "name": "Imagen 4 Ultra", "desc": "🏆 MEJOR calidad + texto", "type": "imagen4"},
+    {"id": "imagen-4.0-generate-001", "name": "Imagen 4", "desc": "✅ Alta calidad + texto", "type": "imagen4"},
+    {"id": "imagen-4.0-fast-generate-001", "name": "Imagen 4 Fast", "desc": "⚡ Rápido + texto", "type": "imagen4"},
+    # Nano Banana - Via Gemini generateContent
+    {"id": "nano-banana-pro-preview", "name": "Nano Banana Pro", "desc": "⚠️ Sin texto en imagen", "type": "gemini"},
+    {"id": "gemini-3.1-flash-image-preview", "name": "Nano Banana 2", "desc": "⚠️ Sin texto en imagen", "type": "gemini"},
+    {"id": "gemini-2.5-flash-image", "name": "Nano Banana", "desc": "⚠️ Sin texto en imagen", "type": "gemini"},
+]
+
 class AICopyResponse(BaseModel):
     super_headline: str
     main_headline: str
@@ -1151,3 +1176,1183 @@ def generate_social_posts(project_name: str, context: str = "") -> str:
     except Exception as e:
         print(f"Error Social AI: {e}")
         return get_fallback()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# GENERACIÓN DE IMÁGENES CON GOOGLE AI (Modelo Seleccionable)
+# ═══════════════════════════════════════════════════════════════════
+
+def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano-banana-pro-preview") -> dict:
+    """
+    Genera una imagen usando Google AI con modelo seleccionable.
+    
+    Args:
+        prompt: Descripción de la imagen a generar
+        aspect_ratio: Formato de imagen ("1:1", "16:9", "9:16", "4:3", "3:4")
+        model: Modelo a usar (imagen-4.0-ultra-generate-001, nano-banana-pro-preview, etc.)
+    
+    Returns:
+        dict con "image_base64" (str), "mime_type" (str), "model_used" (str), o "error" (str)
+    """
+    import base64
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay VERTEX_API_KEY configurada"}
+    
+    # Detectar si es modelo Imagen 4 (usa endpoint predict)
+    is_imagen4 = model.startswith("imagen-4")
+    
+    # Prompt engineering para real estate de lujo
+    enhanced_prompt = f"""Photorealistic luxury real estate photography in Riviera Maya, Mexico.
+
+{prompt}
+
+Style: Ultra high resolution professional architectural photography, golden hour lighting, warm tropical tones, magazine cover quality, clean composition for text overlay, aspirational luxury atmosphere."""
+
+    print(f"🎨 Generando imagen con modelo: {model} ({'Imagen 4' if is_imagen4 else 'Gemini'})...")
+    print(f"📝 Prompt: {enhanced_prompt[:100]}...")
+    
+    try:
+        if is_imagen4:
+            # ═══ IMAGEN 4 - Usa endpoint predict ═══
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict?key={api_key}"
+            
+            # Mapear aspect ratio a formato Imagen 4
+            aspect_map = {
+                "1:1": "1:1",
+                "16:9": "16:9",
+                "9:16": "9:16",
+                "4:3": "4:3",
+                "3:4": "3:4"
+            }
+            
+            payload = {
+                "instances": [{
+                    "prompt": enhanced_prompt
+                }],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": aspect_map.get(aspect_ratio, "1:1"),
+                    "outputOptions": {
+                        "mimeType": "image/png"
+                    }
+                }
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            response = requests.post(url, json=payload, headers=headers, timeout=180)
+            
+            if response.status_code == 200:
+                data = response.json()
+                predictions = data.get("predictions", [])
+                if predictions and len(predictions) > 0:
+                    # Imagen 4 devuelve base64 directamente
+                    image_data = predictions[0].get("bytesBase64Encoded") or predictions[0].get("image", {}).get("bytesBase64Encoded")
+                    if image_data:
+                        print(f"✅ Imagen generada exitosamente con {model}")
+                        return {
+                            "image_base64": image_data,
+                            "mime_type": "image/png",
+                            "model_used": model
+                        }
+                return {"error": "No se generó ninguna imagen en la respuesta de Imagen 4"}
+            else:
+                error_msg = response.text[:500]
+                print(f"❌ Error API Imagen 4: {response.status_code} - {error_msg}")
+                return {"error": f"Error {response.status_code}: {error_msg}"}
+        
+        else:
+            # ═══ GEMINI/NANO BANANA - Usa endpoint generateContent ═══
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": enhanced_prompt}]
+                }],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE", "TEXT"]
+                }
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            response = requests.post(url, json=payload, headers=headers, timeout=180)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if "candidates" in data and len(data["candidates"]) > 0:
+                    parts = data["candidates"][0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        if "inlineData" in part:
+                            image_base64 = part["inlineData"].get("data")
+                            mime_type = part["inlineData"].get("mimeType", "image/png")
+                            if image_base64:
+                                print(f"✅ Imagen generada exitosamente con {model}")
+                                return {
+                                    "image_base64": image_base64,
+                                    "mime_type": mime_type,
+                                    "model_used": model
+                                }
+                return {"error": "No se generó ninguna imagen en la respuesta"}
+            else:
+                error_msg = response.text[:500]
+                print(f"❌ Error API: {response.status_code} - {error_msg}")
+                return {"error": f"Error {response.status_code}: {error_msg}"}
+            
+    except Exception as e:
+        print(f"❌ Error generando imagen: {e}")
+        return {"error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# IMAGE-TO-IMAGE EDITING (Mantiene estructura, aplica mejoras)
+# ═══════════════════════════════════════════════════════════════════
+
+def edit_image_with_ai(image_base64: str, prompt: str, style_preset: str = "luxury_real_estate") -> dict:
+    """
+    Edita una imagen existente usando IA, manteniendo estructura y colores.
+    
+    Args:
+        image_base64: Imagen original en base64
+        prompt: Instrucciones de edición (ej: "mejorar iluminación golden hour")
+        style_preset: Preset de estilo ("luxury_real_estate", "twilight", "aerial", etc.)
+    
+    Returns:
+        dict con "image_base64" y "mime_type", o "error"
+    """
+    import base64
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay VERTEX_API_KEY configurada"}
+    
+    # Style presets para real estate de lujo
+    STYLE_PRESETS = {
+        "luxury_real_estate": "Maintain exact composition and architecture. Enhance with professional real estate photography lighting, warm golden hour tones, crystal clear sky, lush green vegetation, pristine pool water.",
+        "twilight": "Transform to magical twilight/blue hour. Keep all architecture identical. Add warm interior lights glowing from windows, deep blue sky with subtle purple gradients, professional real estate twilight photography.",
+        "golden_hour": "Enhance to perfect golden hour lighting. Maintain exact structure. Add warm sunlight casting long shadows, golden reflections on water/glass, magazine-quality real estate photography.",
+        "aerial_luxury": "Maintain aerial perspective and layout. Enhance with crystal clear drone photography quality, vibrant jungle greens, turquoise water, luxury resort atmosphere.",
+        "interior_luxury": "Keep exact room layout and furniture. Enhance with professional interior photography lighting, warm ambient glow, magazine-quality staging, luxury hospitality atmosphere.",
+        "pool_paradise": "Maintain pool and architecture exactly. Add crystal clear turquoise water reflections, palm tree shadows, resort paradise atmosphere, professional architectural photography.",
+        "jungle_luxury": "Keep all structures identical. Enhance jungle vegetation to lush tropical paradise, add morning mist, exotic bird of paradise atmosphere, National Geographic quality.",
+        "minimalist_clean": "Maintain composition exactly. Clean up distractions, enhance with minimalist luxury aesthetic, soft diffused lighting, architectural digest quality.",
+    }
+    
+    style_instructions = STYLE_PRESETS.get(style_preset, STYLE_PRESETS["luxury_real_estate"])
+    
+    # Prompt engineering para mantener fidelidad
+    full_prompt = f"""CRITICAL: You are editing an existing real estate photograph. 
+
+ABSOLUTE RULES:
+- Keep the EXACT same buildings, architecture, pool shapes, and layout
+- Do NOT change the position or structure of any element
+- Do NOT add or remove buildings, furniture, or major elements
+- Maintain the same camera angle and perspective
+- Preserve the brand colors if visible
+
+ENHANCEMENT INSTRUCTIONS:
+{prompt}
+
+STYLE GUIDE:
+{style_instructions}
+
+OUTPUT: Ultra high resolution, photorealistic, professional real estate photography quality."""
+
+    print(f"🎨 Editando imagen con IA (Image-to-Image)...")
+    print(f"📝 Style: {style_preset}")
+    print(f"📝 Prompt: {prompt[:80]}...")
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key={api_key}"
+        
+        # Payload con imagen de referencia + prompt
+        payload = {
+            "contents": [{
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/jpeg",
+                            "data": image_base64
+                        }
+                    },
+                    {
+                        "text": full_prompt
+                    }
+                ]
+            }],
+            "generationConfig": {
+                "responseModalities": ["IMAGE", "TEXT"]
+            }
+        }
+        
+        headers = {"Content-Type": "application/json"}
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=240)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "candidates" in data and len(data["candidates"]) > 0:
+                parts = data["candidates"][0].get("content", {}).get("parts", [])
+                for part in parts:
+                    if "inlineData" in part:
+                        image_base64_result = part["inlineData"].get("data")
+                        mime_type = part["inlineData"].get("mimeType", "image/png")
+                        if image_base64_result:
+                            print(f"✅ Imagen editada exitosamente")
+                            return {
+                                "image_base64": image_base64_result,
+                                "mime_type": mime_type
+                            }
+            return {"error": "No se generó ninguna imagen editada"}
+        else:
+            error_msg = response.text[:500]
+            print(f"❌ Error API: {response.status_code} - {error_msg}")
+            return {"error": f"Error {response.status_code}: {error_msg}"}
+            
+    except Exception as e:
+        print(f"❌ Error editando imagen: {e}")
+        return {"error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# BIBLIOTECA DE PROMPTS DE DISEÑO PROFESIONALES
+# ═══════════════════════════════════════════════════════════════════
+
+DESIGN_PROMPTS_LIBRARY = {
+    "hero_shots": [
+        {
+            "name": "Golden Hour Paradise",
+            "prompt": "Luxury beachfront villa at golden hour, infinity pool reflecting sunset, palm trees silhouettes, warm amber lighting, magazine cover quality",
+            "tags": ["exterior", "pool", "sunset", "hero"]
+        },
+        {
+            "name": "Twilight Elegance",
+            "prompt": "Modern luxury residence at twilight, interior lights glowing warmly, deep blue sky, architectural photography, Dwell magazine style",
+            "tags": ["exterior", "twilight", "architecture", "hero"]
+        },
+        {
+            "name": "Aerial Jungle Estate",
+            "prompt": "Aerial drone view of luxury development surrounded by lush Mayan jungle, turquoise cenote, winding paths, resort atmosphere",
+            "tags": ["aerial", "jungle", "development", "hero"]
+        },
+        {
+            "name": "Rooftop Infinity",
+            "prompt": "Rooftop infinity pool overlooking Caribbean sea, sunset colors reflecting on water, lounge chairs, ultra-luxury resort vibe",
+            "tags": ["rooftop", "pool", "ocean", "hero"]
+        },
+    ],
+    "lifestyle": [
+        {
+            "name": "Couple Champagne Sunset",
+            "prompt": "Elegant couple enjoying champagne on private terrace, golden hour sunset over ocean, luxury lifestyle, aspirational real estate photography",
+            "tags": ["people", "lifestyle", "terrace", "sunset"]
+        },
+        {
+            "name": "Family Pool Day",
+            "prompt": "Happy family enjoying luxury pool, tropical paradise setting, palm trees, crystal clear water, vacation lifestyle photography",
+            "tags": ["people", "family", "pool", "lifestyle"]
+        },
+        {
+            "name": "Yoga Morning Zen",
+            "prompt": "Woman doing yoga on private terrace at sunrise, jungle view, wellness retreat atmosphere, peaceful luxury living",
+            "tags": ["wellness", "lifestyle", "morning", "terrace"]
+        },
+    ],
+    "interiors": [
+        {
+            "name": "Living Room Luxury",
+            "prompt": "Spacious luxury living room with floor-to-ceiling windows, jungle view, contemporary Mexican design, natural materials, Architectural Digest quality",
+            "tags": ["interior", "living", "windows", "design"]
+        },
+        {
+            "name": "Master Suite Paradise",
+            "prompt": "Master bedroom with private terrace, ocean view, king bed with white linens, boutique hotel luxury, warm ambient lighting",
+            "tags": ["interior", "bedroom", "ocean", "luxury"]
+        },
+        {
+            "name": "Gourmet Kitchen",
+            "prompt": "Modern gourmet kitchen with island, high-end appliances, natural stone counters, tropical breakfast setting, lifestyle photography",
+            "tags": ["interior", "kitchen", "modern", "lifestyle"]
+        },
+    ],
+    "amenities": [
+        {
+            "name": "Beach Club Sunset",
+            "prompt": "Exclusive beach club at sunset, lounge beds on white sand, tiki torches, Caribbean sea, ultra-luxury resort atmosphere",
+            "tags": ["amenity", "beach", "club", "sunset"]
+        },
+        {
+            "name": "Spa Sanctuary",
+            "prompt": "Luxury spa treatment room, jungle view, natural materials, candles, wellness retreat atmosphere, tranquil and serene",
+            "tags": ["amenity", "spa", "wellness", "interior"]
+        },
+        {
+            "name": "Fine Dining Terrace",
+            "prompt": "Elegant outdoor restaurant terrace, ocean view, candlelit tables, gourmet cuisine presentation, five-star resort dining",
+            "tags": ["amenity", "dining", "restaurant", "terrace"]
+        },
+    ],
+    "riviera_maya": [
+        {
+            "name": "Tulum Ruins View",
+            "prompt": "Luxury terrace with view of ancient Mayan ruins and Caribbean sea, cultural heritage meets modern luxury, Tulum atmosphere",
+            "tags": ["tulum", "ruins", "cultural", "view"]
+        },
+        {
+            "name": "Cenote Experience",
+            "prompt": "Crystal clear cenote surrounded by jungle, sunlight rays through cave opening, mystical Yucatan atmosphere, natural wonder",
+            "tags": ["cenote", "nature", "mystical", "yucatan"]
+        },
+        {
+            "name": "Jungle Canopy",
+            "prompt": "Luxury treehouse villa in jungle canopy, howler monkeys, exotic birds, eco-luxury architecture, sustainable design",
+            "tags": ["jungle", "eco", "treehouse", "nature"]
+        },
+    ],
+}
+
+def get_design_prompts(category: str = None, tags: list = None) -> list:
+    """
+    Obtiene prompts de diseño filtrados por categoría o tags.
+    
+    Args:
+        category: Categoría específica o None para todas
+        tags: Lista de tags para filtrar
+    
+    Returns:
+        Lista de prompts que coinciden
+    """
+    results = []
+    
+    categories = [category] if category else DESIGN_PROMPTS_LIBRARY.keys()
+    
+    for cat in categories:
+        if cat in DESIGN_PROMPTS_LIBRARY:
+            for prompt_item in DESIGN_PROMPTS_LIBRARY[cat]:
+                if tags:
+                    if any(tag in prompt_item["tags"] for tag in tags):
+                        results.append({**prompt_item, "category": cat})
+                else:
+                    results.append({**prompt_item, "category": cat})
+    
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PROMPT ENGINEERING STUDIO - Extracción y Adaptación de Prompts
+# ═══════════════════════════════════════════════════════════════════
+
+def extract_prompt_from_image(image_base64: str) -> dict:
+    """
+    Analiza una imagen de referencia (Pinterest/diseño) y extrae el prompt
+    que la generaría. Reverse engineering de prompts.
+    
+    Args:
+        image_base64: Imagen de referencia en base64
+    
+    Returns:
+        dict con prompt extraído, elementos, estilo, colores detectados
+    """
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay API key configurada"}
+    
+    analysis_prompt = """Eres un experto en prompt engineering para generación de imágenes de IA.
+
+Analiza esta imagen de diseño/publicidad y extrae EXACTAMENTE qué prompt la generaría.
+
+Responde en JSON con esta estructura EXACTA:
+{
+    "extracted_prompt": "El prompt completo y detallado que generaría esta imagen",
+    "style": "Estilo visual (ej: minimalist, luxury, editorial, dramatic)",
+    "composition": "Descripción de la composición (ej: centered, rule of thirds, aerial)",
+    "lighting": "Tipo de iluminación (ej: golden hour, studio, natural, moody)",
+    "color_palette": ["#hex1", "#hex2", "#hex3", "#hex4", "#hex5"],
+    "dominant_mood": "Atmósfera/mood (ej: aspirational, serene, energetic, exclusive)",
+    "key_elements": ["elemento1", "elemento2", "elemento3"],
+    "text_areas": "Zonas ideales para poner texto (ej: top, bottom, left margin)",
+    "photography_style": "Estilo fotográfico (ej: architectural, lifestyle, product, aerial drone)",
+    "target_audience": "Audiencia objetivo inferida (ej: luxury buyers, investors, families)"
+}
+
+Sé MUY específico y técnico. El prompt extraído debe poder recrear una imagen similar."""
+
+    print(f"🔍 Extrayendo prompt de imagen de referencia...")
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        
+        payload = {
+            "contents": [{
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/jpeg",
+                            "data": image_base64
+                        }
+                    },
+                    {"text": analysis_prompt}
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 2000
+            }
+        }
+        
+        response = requests.post(url, json=payload, timeout=60)
+        
+        if response.status_code == 200:
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            
+            # Limpiar y parsear JSON
+            text = text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            
+            try:
+                result = json.loads(text.strip())
+                print(f"✅ Prompt extraído exitosamente")
+                return {"success": True, **result}
+            except json.JSONDecodeError:
+                return {"success": True, "extracted_prompt": text, "raw": True}
+        else:
+            return {"error": f"Error API: {response.status_code}"}
+            
+    except Exception as e:
+        print(f"❌ Error extrayendo prompt: {e}")
+        return {"error": str(e)}
+
+
+def extract_colors_from_image(image_base64: str) -> dict:
+    """
+    Extrae la paleta de colores dominantes de una imagen.
+    
+    Args:
+        image_base64: Imagen en base64
+    
+    Returns:
+        dict con colores en hex y nombres descriptivos
+    """
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay API key configurada"}
+    
+    color_prompt = """Analiza esta imagen y extrae su paleta de colores profesional.
+
+Responde SOLO en JSON con esta estructura:
+{
+    "colors": [
+        {"hex": "#XXXXXX", "name": "nombre descriptivo", "usage": "donde se usa en la imagen"},
+        {"hex": "#XXXXXX", "name": "nombre", "usage": "uso"},
+        {"hex": "#XXXXXX", "name": "nombre", "usage": "uso"},
+        {"hex": "#XXXXXX", "name": "nombre", "usage": "uso"},
+        {"hex": "#XXXXXX", "name": "nombre", "usage": "uso"}
+    ],
+    "palette_mood": "descripción del mood de la paleta (ej: warm luxury, cool minimal, tropical vibrant)",
+    "suggested_text_color": "#XXXXXX",
+    "suggested_accent_color": "#XXXXXX",
+    "contrast_level": "alto/medio/bajo"
+}
+
+Extrae 5 colores principales. Incluye colores de fondo, acentos y detalles."""
+
+    print(f"🎨 Extrayendo paleta de colores...")
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        
+        payload = {
+            "contents": [{
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/jpeg",
+                            "data": image_base64
+                        }
+                    },
+                    {"text": color_prompt}
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 1000
+            }
+        }
+        
+        response = requests.post(url, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            
+            print(f"🔍 Raw response: {text[:200]}...")  # Debug
+            
+            # Limpiar JSON - múltiples estrategias
+            text = text.strip()
+            
+            # Estrategia 1: Buscar bloque ```json
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+            
+            # Estrategia 2: Buscar directamente el objeto JSON con regex
+            import re
+            json_match = re.search(r'\{[\s\S]*"colors"[\s\S]*\}', text)
+            if json_match:
+                text = json_match.group(0)
+            
+            # Limpiar caracteres problemáticos
+            text = text.strip()
+            
+            print(f"🧹 Cleaned JSON: {text[:150]}...")  # Debug
+            
+            try:
+                result = json.loads(text)
+                print(f"✅ Colores extraídos: {len(result.get('colors', []))} colores")
+                return {"success": True, **result}
+            except json.JSONDecodeError as je:
+                print(f"❌ JSON parse error: {je}")
+                print(f"❌ Failed text: {text}")
+                
+                # Fallback: extraer colores manualmente con regex
+                hex_colors = re.findall(r'#[0-9A-Fa-f]{6}', text)
+                if hex_colors:
+                    fallback_colors = [{"hex": c, "name": f"Color {i+1}", "usage": "extraído"} for i, c in enumerate(hex_colors[:5])]
+                    return {"success": True, "colors": fallback_colors, "palette_mood": "extracted"}
+                
+                return {"error": "Error parseando respuesta de colores"}
+        else:
+            return {"error": f"Error API: {response.status_code}"}
+            
+    except Exception as e:
+        print(f"❌ Error extrayendo colores: {e}")
+        return {"error": str(e)}
+
+
+def adapt_prompt_to_project(
+    base_prompt: str, 
+    project_name: str = None,
+    project_location: str = None,
+    color_palette: list = None,
+    style_overrides: dict = None
+) -> dict:
+    """
+    Adapta un prompt base a un proyecto específico con sus colores y características.
+    
+    Args:
+        base_prompt: Prompt original a adaptar
+        project_name: Nombre del proyecto (ej: VELMARI, ALBA)
+        project_location: Ubicación (ej: Tulum, Riviera Maya)
+        color_palette: Lista de colores hex extraídos de la imagen de fondo
+        style_overrides: Overrides de estilo específicos
+    
+    Returns:
+        dict con prompt adaptado y variantes
+    """
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay API key configurada"}
+    
+    # Obtener datos del proyecto si existe
+    project_data = None
+    if project_name:
+        project_name_upper = project_name.upper()
+        color_scheme = get_project_color_scheme(project_name_upper)
+        if color_scheme:
+            project_data = {
+                "name": project_name_upper,
+                "colors": color_scheme,
+                "location": project_location or "Riviera Maya, México"
+            }
+    
+    # Construir contexto de adaptación
+    context_parts = []
+    
+    if project_data:
+        context_parts.append(f"PROYECTO: {project_data['name']}")
+        context_parts.append(f"UBICACIÓN: {project_data['location']}")
+        context_parts.append(f"COLORES DE MARCA: {json.dumps(project_data['colors'])}")
+    
+    if color_palette:
+        context_parts.append(f"PALETA DE IMAGEN DE FONDO: {', '.join(color_palette[:5])}")
+    
+    if style_overrides:
+        context_parts.append(f"ESTILO ESPECÍFICO: {json.dumps(style_overrides)}")
+    
+    context = "\n".join(context_parts) if context_parts else "Sin contexto específico"
+    
+    adaptation_prompt = f"""Eres un experto en adaptación de prompts para publicidad de real estate de lujo.
+
+PROMPT ORIGINAL:
+{base_prompt}
+
+CONTEXTO DE ADAPTACIÓN:
+{context}
+
+Tu tarea es adaptar el prompt original para que:
+1. Mantenga la esencia y estructura visual del original
+2. Incorpore los colores de la paleta proporcionada de forma natural
+3. Se ajuste al proyecto y ubicación si se proporcionan
+4. Optimice para fotografía de bienes raíces de ultra lujo
+
+Responde en JSON:
+{{
+    "adapted_prompt": "El prompt adaptado completo",
+    "color_integration": "Cómo se integraron los colores",
+    "style_notes": "Notas sobre el estilo aplicado",
+    "variants": [
+        {{"name": "Golden Hour", "prompt": "variante con iluminación dorada"}},
+        {{"name": "Twilight", "prompt": "variante al atardecer/anochecer"}},
+        {{"name": "Aerial", "prompt": "variante vista aérea si aplica"}}
+    ]
+}}
+
+El prompt adaptado debe ser específico, técnico y generar imágenes de calidad publicitaria."""
+
+    print(f"🔄 Adaptando prompt para proyecto: {project_name or 'genérico'}...")
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        
+        payload = {
+            "contents": [{"parts": [{"text": adaptation_prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 2000
+            }
+        }
+        
+        response = requests.post(url, json=payload, timeout=45)
+        
+        if response.status_code == 200:
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            
+            # Limpiar JSON
+            text = text.strip()
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+            
+            try:
+                result = json.loads(text.strip())
+                print(f"✅ Prompt adaptado con {len(result.get('variants', []))} variantes")
+                return {"success": True, **result}
+            except json.JSONDecodeError:
+                # Si no es JSON válido, devolver el texto como prompt
+                return {"success": True, "adapted_prompt": text, "variants": []}
+        else:
+            return {"error": f"Error API: {response.status_code}"}
+            
+    except Exception as e:
+        print(f"❌ Error adaptando prompt: {e}")
+        return {"error": str(e)}
+
+
+def create_ad_prompt_from_reference(
+    reference_image_base64: str,
+    background_image_base64: str = None,
+    project_name: str = None,
+    ad_type: str = "hero"
+) -> dict:
+    """
+    Pipeline completo: Extrae prompt de referencia, analiza colores del fondo,
+    y genera un prompt de publicidad adaptado.
+    
+    Args:
+        reference_image_base64: Imagen de Pinterest/diseño de referencia
+        background_image_base64: Imagen de fondo del proyecto (opcional)
+        project_name: Nombre del proyecto
+        ad_type: Tipo de anuncio (hero, social, story)
+    
+    Returns:
+        dict con prompt final y todos los análisis intermedios
+    """
+    print(f"🚀 Iniciando pipeline de creación de prompt publicitario...")
+    
+    results = {
+        "success": False,
+        "extraction": None,
+        "colors": None,
+        "final_prompt": None,
+        "variants": []
+    }
+    
+    # Paso 1: Extraer prompt de la imagen de referencia
+    print("📌 Paso 1: Extrayendo prompt de referencia...")
+    extraction = extract_prompt_from_image(reference_image_base64)
+    if "error" in extraction:
+        return {"error": f"Error en extracción: {extraction['error']}"}
+    results["extraction"] = extraction
+    
+    # Paso 2: Extraer colores del fondo (si se proporciona)
+    color_palette = None
+    if background_image_base64:
+        print("📌 Paso 2: Extrayendo colores del fondo...")
+        colors = extract_colors_from_image(background_image_base64)
+        if "error" not in colors:
+            results["colors"] = colors
+            color_palette = [c["hex"] for c in colors.get("colors", [])]
+    
+    # Paso 3: Adaptar el prompt
+    print("📌 Paso 3: Adaptando prompt al proyecto...")
+    base_prompt = extraction.get("extracted_prompt", "")
+    
+    adaptation = adapt_prompt_to_project(
+        base_prompt=base_prompt,
+        project_name=project_name,
+        color_palette=color_palette,
+        style_overrides={
+            "ad_type": ad_type,
+            "lighting": extraction.get("lighting", "golden hour"),
+            "composition": extraction.get("composition", "clean with text space")
+        }
+    )
+    
+    if "error" in adaptation:
+        return {"error": f"Error en adaptación: {adaptation['error']}"}
+    
+    results["final_prompt"] = adaptation.get("adapted_prompt", base_prompt)
+    results["variants"] = adaptation.get("variants", [])
+    results["success"] = True
+    
+    print(f"✅ Pipeline completado exitosamente")
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CHAT MULTIMODELO — Director de Marketing AI
+# ═══════════════════════════════════════════════════════════════════
+
+MARKETING_SYSTEM_PROMPT = """Eres el Director de Marketing AI de Brisa Maya Capital, una desarrolladora de real estate de ultra-lujo en la Riviera Maya, México.
+
+Tu rol:
+- Ayudar a crear y mejorar prompts para generación de imágenes
+- Analizar imágenes de competencia o referencias
+- Sugerir mejoras de copy y estrategia visual
+- Adaptar contenido a diferentes plataformas (Instagram, Facebook, WhatsApp)
+- Mantener la consistencia de marca (oro, elegancia, exclusividad)
+- GENERAR CÓDIGO HTML/CSS COMPLETO para publicidad con texto sobre imágenes
+
+Estilo de comunicación:
+- Profesional pero accesible
+- Creativo y orientado a resultados
+- Conocimiento profundo del mercado inmobiliario de lujo
+- Siempre en español
+
+Cuando analices imágenes, proporciona:
+1. Descripción detallada de la composición
+2. Análisis de colores y paleta
+3. Sugerencias de mejora
+4. Prompt optimizado para recrear/mejorar
+
+═══ GENERACIÓN DE PUBLICIDAD HTML/CSS ═══
+
+Cuando el usuario pida "dame el HTML", "genera la publicidad", "código HTML/CSS", o suba una imagen pidiendo texto sobre ella, genera un documento HTML COMPLETO con:
+
+ESTRUCTURA OBLIGATORIA:
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[NOMBRE PROYECTO] – Riviera Maya</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1080px; height: 1080px; overflow: hidden; background: #000; }
+  .ad { position: relative; width: 1080px; height: 1080px; overflow: hidden; }
+  
+  /* BACKGROUND - Usuario reemplaza URL */
+  .bg {
+    position: absolute; inset: 0;
+    background-image: url('REEMPLAZAR_CON_TU_IMAGEN.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+  
+  /* GRADIENTES CINEMATOGRÁFICOS */
+  .overlay-top {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 300px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+  }
+  .overlay-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 450px;
+    background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
+  }
+  
+  /* CONTENIDO */
+  .content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 60px 72px; }
+  
+  /* TIPOGRAFÍA */
+  .logo-name { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 28px; letter-spacing: 8px; color: #fff; text-transform: uppercase; }
+  .logo-tagline { font-family: 'Montserrat', sans-serif; font-weight: 300; font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.7); text-transform: uppercase; }
+  .badge { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(8px); padding: 10px 22px; }
+  .badge span { font-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 11px; letter-spacing: 3px; color: #fff; text-transform: uppercase; }
+  .eyebrow { font-family: 'Montserrat', sans-serif; font-weight: 400; font-size: 13px; letter-spacing: 5px; color: rgba(255,255,255,0.75); text-transform: uppercase; display: flex; align-items: center; gap: 14px; }
+  .eyebrow::before { content: ''; width: 40px; height: 1px; background: rgba(255,255,255,0.6); }
+  .headline { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 86px; line-height: 0.95; color: #fff; }
+  .headline em { font-style: italic; color: #f0d9a8; }
+  .subheadline { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 32px; color: rgba(255,255,255,0.85); }
+  .price-value { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 52px; color: #fff; }
+  .price-label { font-family: 'Montserrat', sans-serif; font-weight: 300; font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.6); text-transform: uppercase; }
+  .feature { display: flex; align-items: center; gap: 10px; }
+  .feature-dot { width: 5px; height: 5px; border-radius: 50%; background: #f0d9a8; }
+  .feature span { font-family: 'Montserrat', sans-serif; font-weight: 300; font-size: 11.5px; letter-spacing: 2px; color: rgba(255,255,255,0.8); text-transform: uppercase; }
+  .cta-btn { background: #fff; color: #1a1a1a; font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; padding: 16px 40px; border: none; }
+</style>
+</head>
+<body>
+<div class="ad">
+  <div class="bg"></div>
+  <div class="overlay-top"></div>
+  <div class="overlay-bottom"></div>
+  <div class="content">
+    <!-- TOP -->
+    <div class="top" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div class="logo-area">
+        <div class="logo-name">[PROYECTO]</div>
+        <div class="logo-tagline">Riviera Maya · Luxury Living</div>
+      </div>
+      <div class="badge"><span>[BADGE]</span></div>
+    </div>
+    <!-- BOTTOM -->
+    <div class="bottom">
+      <div class="eyebrow">[EYEBROW]</div>
+      <div class="headline">[HEADLINE CON <em>PALABRA DESTACADA</em>]</div>
+      <div class="subheadline">[SUBHEADLINE]</div>
+      <div style="width:60px;height:1px;background:rgba(255,255,255,0.5);margin:28px 0;"></div>
+      <div class="price-row" style="display:flex;gap:40px;margin-bottom:32px;">
+        <div><div class="price-label">Desde</div><div class="price-value">$X.X MDP</div></div>
+      </div>
+      <div class="features-row" style="display:flex;gap:36px;margin-bottom:32px;">
+        <div class="feature"><div class="feature-dot"></div><span>[FEATURE 1]</span></div>
+        <div class="feature"><div class="feature-dot"></div><span>[FEATURE 2]</span></div>
+        <div class="feature"><div class="feature-dot"></div><span>[FEATURE 3]</span></div>
+      </div>
+      <div class="cta-btn">[CTA]</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+```
+
+PALETA ESTÁNDAR DE LUJO:
+- Dorado accent: #f0d9a8
+- Blanco principal: #ffffff
+- Blanco cuerpo: rgba(255,255,255,0.8)
+- Sombras overlay: rgba(0,0,0,0.6-0.75)
+
+FORMATOS:
+- Instagram Feed: 1080x1080
+- Instagram Story/Reel: 1080x1920
+- Facebook: 1200x628
+
+Cuando generes HTML/CSS:
+1. SIEMPRE incluye el código completo y funcional
+2. Personaliza textos según lo que pida el usuario
+3. Indica dónde reemplazar la imagen de fondo
+4. El código debe ser copy-paste listo para usar
+
+Proyectos activos: SOL KAÁ, VELMARI, MISTRAL, ALBA, CEIBA, LANDMARK, THE RESIDENCES"""
+
+
+def detect_image_request(message: str) -> dict:
+    """
+    Detecta si el usuario quiere generar una imagen.
+    Returns: {"should_generate": bool, "prompt": str}
+    """
+    message_lower = message.lower()
+    
+    # Patrones para detectar solicitudes de imagen
+    image_triggers = [
+        "genera una imagen",
+        "generar una imagen",
+        "genera imagen",
+        "crea una imagen",
+        "crear una imagen",
+        "hazme una imagen",
+        "haz una imagen",
+        "dibuja",
+        "dibújame",
+        "quiero una imagen",
+        "necesito una imagen",
+        "podrías generar",
+        "puedes generar",
+        "generate an image",
+        "create an image",
+        "make an image",
+    ]
+    
+    for trigger in image_triggers:
+        if trigger in message_lower:
+            # Extraer el prompt de la imagen
+            # Remover el trigger y usar el resto como prompt
+            prompt = message
+            for t in image_triggers:
+                prompt = prompt.lower().replace(t, "").strip()
+            
+            # Si el prompt está vacío, usar el mensaje completo
+            if len(prompt) < 10:
+                prompt = message
+            
+            return {"should_generate": True, "prompt": prompt}
+    
+    return {"should_generate": False, "prompt": ""}
+
+
+def chat_with_marketing_ai(
+    message: str,
+    model: str = "gemini-2.5-flash",
+    history: list = None,
+    image_base64: str = None,
+    audio_base64: str = None
+) -> dict:
+    """
+    Chat con el Director de Marketing AI usando el modelo seleccionado.
+    
+    Args:
+        message: Mensaje del usuario
+        model: Modelo a usar (gemini-2.5-flash, gemini-2.5-pro, etc.)
+        history: Historial de conversación [{role, content}]
+        image_base64: Imagen adjunta (opcional)
+        audio_base64: Audio adjunto (opcional)
+    
+    Returns:
+        dict con "response" (str), "model_used" (str), o "error" (str)
+    """
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay API key configurada"}
+    
+    print(f"💬 Chat con {model}...")
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        
+        # Construir el contenido
+        contents = []
+        
+        # Agregar historial si existe
+        if history:
+            for h in history[-20:]:  # Últimos 20 mensajes (aumentado)
+                role = "user" if h.get("role") == "user" else "model"
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": h.get("content", "")}]
+                })
+        
+        # Construir el mensaje actual
+        current_parts = []
+        
+        # Agregar imagen si existe
+        if image_base64:
+            current_parts.append({
+                "inlineData": {
+                    "mimeType": "image/jpeg",
+                    "data": image_base64
+                }
+            })
+        
+        # Agregar audio si existe
+        if audio_base64:
+            current_parts.append({
+                "inlineData": {
+                    "mimeType": "audio/webm",
+                    "data": audio_base64
+                }
+            })
+        
+        # Agregar el mensaje de texto
+        current_parts.append({"text": message})
+        
+        contents.append({
+            "role": "user",
+            "parts": current_parts
+        })
+        
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": MARKETING_SYSTEM_PROMPT}]
+            },
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 8192  # Sin límites prácticos
+            }
+        }
+        
+        response = requests.post(url, json=payload, timeout=120)
+        
+        if response.status_code == 200:
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            
+            if text:
+                print(f"✅ Respuesta generada con {model}")
+                return {
+                    "response": text,
+                    "model_used": model,
+                    "success": True
+                }
+            return {"error": "Sin respuesta del modelo"}
+        else:
+            error_msg = response.text[:300]
+            print(f"❌ Error API {model}: {response.status_code}")
+            return {"error": f"Error {response.status_code}: {error_msg}"}
+            
+    except Exception as e:
+        print(f"❌ Error en chat: {e}")
+        return {"error": str(e)}
+
+
+def chat_with_marketing_ai_stream(
+    message: str,
+    model: str = "gemini-2.5-flash",
+    history: list = None,
+    image_base64: str = None,
+    audio_base64: str = None
+):
+    """
+    Chat con streaming - genera respuesta token por token (generator).
+    
+    Yields:
+        str: Cada fragmento de texto generado
+    """
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        yield "Error: No hay API key configurada"
+        return
+    
+    print(f"💬 [STREAM] Chat con {model}...")
+    
+    try:
+        # Usar endpoint de streaming
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse&key={api_key}"
+        
+        # Construir el contenido
+        contents = []
+        
+        # Agregar historial si existe
+        if history:
+            for h in history[-20:]:
+                role = "user" if h.get("role") == "user" else "model"
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": h.get("content", "")}]
+                })
+        
+        # Construir el mensaje actual
+        current_parts = []
+        
+        if image_base64:
+            current_parts.append({
+                "inlineData": {
+                    "mimeType": "image/jpeg",
+                    "data": image_base64
+                }
+            })
+        
+        if audio_base64:
+            current_parts.append({
+                "inlineData": {
+                    "mimeType": "audio/webm",
+                    "data": audio_base64
+                }
+            })
+        
+        current_parts.append({"text": message})
+        
+        contents.append({
+            "role": "user",
+            "parts": current_parts
+        })
+        
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": MARKETING_SYSTEM_PROMPT}]
+            },
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 8192
+            }
+        }
+        
+        # Hacer request con streaming
+        response = requests.post(url, json=payload, stream=True, timeout=120)
+        
+        if response.status_code == 200:
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        json_str = line_str[6:]  # Remover "data: "
+                        try:
+                            data = json.loads(json_str)
+                            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            if text:
+                                yield text
+                        except json.JSONDecodeError:
+                            continue
+            print(f"✅ [STREAM] Completado con {model}")
+        else:
+            yield f"Error {response.status_code}: {response.text[:200]}"
+            
+    except Exception as e:
+        print(f"❌ Error en streaming: {e}")
+        yield f"Error: {str(e)}"
+
+
+def get_available_models() -> dict:
+    """
+    Retorna la lista de modelos disponibles para chat e imágenes.
+    """
+    return {
+        "chat_models": CHAT_MODELS,
+        "image_models": IMAGE_MODELS
+    }
+
+
+# Exportar funciones necesarias
+__all__ = [
+    'chat_with_marketing_ai',
+    'chat_with_marketing_ai_stream',
+    'detect_image_request',
+    'get_available_models',
+    'generate_ai_image',
+    'CHAT_MODELS',
+    'IMAGE_MODELS',
+    'MARKETING_SYSTEM_PROMPT'
+]

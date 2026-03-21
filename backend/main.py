@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Form, Depends
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional, List
 import json
 import os
 
@@ -16,7 +17,24 @@ if os.path.exists(env_path):
                 os.environ[key.strip()] = value.strip()
 
 from image_processor import process_image, AdParameters
-from ai_copywriter import generate_spectacular_copy, get_project_color_scheme, AICopyRequest, generate_social_posts
+from ai_copywriter import (
+    generate_spectacular_copy, 
+    get_project_color_scheme, 
+    AICopyRequest, 
+    generate_social_posts, 
+    generate_ai_image,
+    edit_image_with_ai,
+    get_design_prompts,
+    DESIGN_PROMPTS_LIBRARY,
+    extract_prompt_from_image,
+    extract_colors_from_image,
+    adapt_prompt_to_project,
+    create_ad_prompt_from_reference,
+    chat_with_marketing_ai,
+    get_available_models,
+    CHAT_MODELS,
+    IMAGE_MODELS
+)
 
 app = FastAPI(title="Brisa Maya Marketing Engine API")
 
@@ -160,6 +178,197 @@ async def get_social_copy(request: AICopyRequest):
         return data
     except:
         return {"variantes": [], "error": f"Invalid JSON or AI error: {copy_json[:100]}..."}
+
+class ImageGenRequest(BaseModel):
+    prompt: str
+    aspect_ratio: str = "1:1"
+
+@app.post("/api/generate-ai-image")
+async def generate_image(request: ImageGenRequest):
+    """Genera una imagen con IA usando Google Imagen 3."""
+    result = generate_ai_image(request.prompt, request.aspect_ratio)
+    
+    if "error" in result:
+        return {"success": False, "error": result["error"]}
+    
+    return {
+        "success": True,
+        "image_base64": result["image_base64"],
+        "mime_type": result["mime_type"]
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# AI IMAGE STUDIO ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+
+class ImageEditRequest(BaseModel):
+    image_base64: str
+    prompt: str
+    style_preset: str = "luxury_real_estate"
+
+@app.post("/api/studio/edit-image")
+async def edit_image(request: ImageEditRequest):
+    """Edita una imagen existente manteniendo estructura y colores."""
+    result = edit_image_with_ai(
+        request.image_base64, 
+        request.prompt, 
+        request.style_preset
+    )
+    
+    if "error" in result:
+        return {"success": False, "error": result["error"]}
+    
+    return {
+        "success": True,
+        "image_base64": result["image_base64"],
+        "mime_type": result["mime_type"]
+    }
+
+@app.get("/api/studio/prompts")
+async def get_prompts(category: str = None):
+    """Obtiene biblioteca de prompts de diseño."""
+    if category:
+        prompts = get_design_prompts(category=category)
+    else:
+        prompts = get_design_prompts()
+    
+    return {
+        "prompts": prompts,
+        "categories": list(DESIGN_PROMPTS_LIBRARY.keys())
+    }
+
+@app.get("/api/studio/style-presets")
+async def get_style_presets():
+    """Obtiene presets de estilo disponibles para image-to-image."""
+    return {
+        "presets": [
+            {"id": "luxury_real_estate", "name": "Luxury Real Estate", "desc": "Fotografía profesional de bienes raíces de lujo"},
+            {"id": "twilight", "name": "Twilight/Blue Hour", "desc": "Hora azul con luces interiores cálidas"},
+            {"id": "golden_hour", "name": "Golden Hour", "desc": "Iluminación dorada de atardecer"},
+            {"id": "aerial_luxury", "name": "Aerial Drone", "desc": "Vista aérea profesional tipo dron"},
+            {"id": "interior_luxury", "name": "Interior Design", "desc": "Fotografía de interiores de revista"},
+            {"id": "pool_paradise", "name": "Pool Paradise", "desc": "Piscina cristalina estilo resort"},
+            {"id": "jungle_luxury", "name": "Jungle Luxury", "desc": "Selva tropical exuberante"},
+            {"id": "minimalist_clean", "name": "Minimalist Clean", "desc": "Estética minimalista y limpia"},
+        ]
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PROMPT ENGINEERING STUDIO ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+
+class ExtractPromptRequest(BaseModel):
+    image_base64: str
+
+@app.post("/api/studio/extract-prompt")
+async def extract_prompt(request: ExtractPromptRequest):
+    """Extrae el prompt de una imagen de referencia (Pinterest/diseño)."""
+    result = extract_prompt_from_image(request.image_base64)
+    return result
+
+class ExtractColorsRequest(BaseModel):
+    image_base64: str
+
+@app.post("/api/studio/extract-colors")
+async def extract_colors(request: ExtractColorsRequest):
+    """Extrae la paleta de colores de una imagen."""
+    result = extract_colors_from_image(request.image_base64)
+    return result
+
+class AdaptPromptRequest(BaseModel):
+    base_prompt: str
+    project_name: str = None
+    project_location: str = None
+    color_palette: list = None
+
+@app.post("/api/studio/adapt-prompt")
+async def adapt_prompt(request: AdaptPromptRequest):
+    """Adapta un prompt a un proyecto específico con sus colores."""
+    result = adapt_prompt_to_project(
+        base_prompt=request.base_prompt,
+        project_name=request.project_name,
+        project_location=request.project_location,
+        color_palette=request.color_palette
+    )
+    return result
+
+class CreateAdPromptRequest(BaseModel):
+    reference_image_base64: str
+    background_image_base64: str = None
+    project_name: str = None
+    ad_type: str = "hero"
+
+@app.post("/api/studio/create-ad-prompt")
+async def create_ad_prompt(request: CreateAdPromptRequest):
+    """
+    Pipeline completo: Extrae prompt de referencia, analiza colores,
+    y genera prompt de publicidad adaptado.
+    """
+    result = create_ad_prompt_from_reference(
+        reference_image_base64=request.reference_image_base64,
+        background_image_base64=request.background_image_base64,
+        project_name=request.project_name,
+        ad_type=request.ad_type
+    )
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MARKETING AI CHAT ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/models")
+async def list_models():
+    """
+    Retorna la lista de modelos disponibles para chat e imágenes.
+    """
+    return get_available_models()
+
+
+class ChatRequest(BaseModel):
+    message: str
+    model: str = "gemini-2.5-flash"
+    history: Optional[List[dict]] = []
+    image_base64: Optional[str] = None
+    audio_base64: Optional[str] = None
+
+
+@app.post("/api/chat")
+async def chat_endpoint(request: ChatRequest):
+    """
+    Chat con el Director de Marketing AI.
+    Soporta texto, imágenes y audio.
+    """
+    result = chat_with_marketing_ai(
+        message=request.message,
+        model=request.model,
+        history=request.history,
+        image_base64=request.image_base64,
+        audio_base64=request.audio_base64
+    )
+    return result
+
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    aspect_ratio: str = "1:1"
+    model: str = "nano-banana-pro-preview"
+
+
+@app.post("/api/studio/generate-image-v2")
+async def generate_image_v2(request: GenerateImageRequest):
+    """
+    Genera una imagen con modelo seleccionable.
+    """
+    result = generate_ai_image(
+        prompt=request.prompt,
+        aspect_ratio=request.aspect_ratio,
+        model=request.model
+    )
+    return result
+
 
 if __name__ == "__main__":
     import uvicorn

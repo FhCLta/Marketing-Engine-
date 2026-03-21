@@ -5,7 +5,13 @@ import './index.css'
 import { getProjects, seedInitialProjects, addProject } from './services/firestoreService'
 import { INITIAL_PROJECTS } from './data/initialProjects'
 
+// Page Components
+import ImageStudio from './pages/ImageStudio'
+
 function App() {
+  // Page Navigation
+  const [currentPage, setCurrentPage] = useState('engine') // 'engine' or 'studio'
+  
   const [imageSrc, setImageSrc] = useState(null)
   const [imageFile, setImageFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -244,11 +250,35 @@ function App() {
     if(!imagePrompt) return alert("Escribe un prompt para la IA")
     setLoading(true)
     try {
-      // TODO: Connect to FastAPI backend endpoint to call Gemini/Imagen
-      alert(`Backend: Falta conectar con la API de IA DALL-E/Midjourney/Gemini para crear: "${imagePrompt}"`)
-      await new Promise(r => setTimeout(r, 2000)) // simulated wait
+      const resp = await fetch("http://localhost:8000/api/generate-ai-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          aspect_ratio: aspectRatio === "original" ? "1:1" : aspectRatio
+        })
+      })
+      const data = await resp.json()
+      
+      if (data.success && data.image_base64) {
+        // Convertir base64 a blob y crear URL
+        const byteCharacters = atob(data.image_base64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: data.mime_type })
+        const imageUrl = URL.createObjectURL(blob)
+        
+        setImageSrc(imageUrl)
+        alert("✅ Imagen generada con IA exitosamente!")
+      } else {
+        alert(`Error: ${data.error || "No se pudo generar la imagen"}`)
+      }
     } catch(err) {
       console.error(err)
+      alert(`Error de conexión: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -463,6 +493,11 @@ function App() {
   }
 
   return (
+    <>
+      {/* Page Router */}
+      {currentPage === 'studio' ? (
+        <ImageStudio onBack={() => setCurrentPage('engine')} />
+      ) : (
     <div className="app-container">
       {/* SIDEBAR / CONTROLS */}
       <div className="sidebar">
@@ -470,6 +505,15 @@ function App() {
           <h1 className="brand-title">BRISA MAYA</h1>
           <div className="brand-subtitle">Marketing Engine AI</div>
         </div>
+        
+        {/* AI STUDIO BUTTON */}
+        <button 
+          className="btn btn-ai" 
+          style={{width: '100%', marginBottom: '15px', padding: '12px', background: 'linear-gradient(135deg, #9333ea, #db2777)'}}
+          onClick={() => setCurrentPage('studio')}
+        >
+          🎨 AI Image Studio
+        </button>
 
         {/* --- NUEVO: PESTAÑAS DE ORIGEN DE IMAGEN --- */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -1082,6 +1126,8 @@ function App() {
         </div>
       )}
     </div>
+      )}
+    </>
   )
 }
 

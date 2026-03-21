@@ -1,6 +1,6 @@
 # PROMPT DE INICIO DE SESIÓN
 
-Antigravity, estamos reanudando la sesión.
+Estamos reanudando la sesión.
 
 **CONTEXTO:**
 Nos mudamos a la carpeta Marketing_Engine para independizar esta aplicación (FastAPI + React Vite) del resto del disco. En la sesión anterior:
