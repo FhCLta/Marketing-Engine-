@@ -1,11 +1,54 @@
 import { useState, useRef, useEffect } from 'react'
 
+// Auth & Database Services
+import { signInWithGoogle, logOut, onAuthChange } from '../services/authService'
+import { 
+  saveDesign, 
+  getUserDesigns, 
+  deleteDesign,
+  toggleFavorite,
+  rateDesign,
+  getAILearningContext,
+  formatContextForPrompt
+} from '../services/designsService'
+import {
+  createConversation,
+  getUserConversations,
+  getConversation,
+  updateConversation,
+  deleteConversation,
+  renameConversation
+} from '../services/conversationsService'
+
 // ═══════════════════════════════════════════════════════════════════
 // AI IMAGE STUDIO - Generador de Imágenes con IA
-// Separado del Motor de Publicidad 8K
+// Con sistema de usuarios, guardado de diseños y aprendizaje de IA
 // ═══════════════════════════════════════════════════════════════════
 
 export default function ImageStudio({ onBack }) {
+  // === AUTH STATES ===
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  
+  // === CONVERSATIONS STATES ===
+  const [conversations, setConversations] = useState([])
+  const [currentConversationId, setCurrentConversationId] = useState(null)
+  const [loadingConversations, setLoadingConversations] = useState(false)
+  const [showConversationsSidebar, setShowConversationsSidebar] = useState(true)
+  const [editingConversationId, setEditingConversationId] = useState(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  
+  // === DESIGNS GALLERY STATES ===
+  const [savedDesigns, setSavedDesigns] = useState([])
+  const [loadingDesigns, setLoadingDesigns] = useState(false)
+  const [aiLearningContext, setAiLearningContext] = useState(null)
+  const [selectedDesignForView, setSelectedDesignForView] = useState(null)
+  // savingDesign and lastSavedId - used for UI feedback
+  const [savingDesign, setSavingDesign] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [, setLastSavedId] = useState(null)
+  
   // Main Tab: 'generate', 'edit', or 'promptLab'
   const [mainTab, setMainTab] = useState('generate')
   
@@ -57,6 +100,24 @@ export default function ImageStudio({ onBack }) {
   const [selectedChatModel, setSelectedChatModel] = useState('gemini-2.5-flash')
   const [selectedImageModel, setSelectedImageModel] = useState('nano-banana-pro-preview')
   
+  // === API ENDPOINT SELECTION ===
+  const [selectedApiEndpoint, setSelectedApiEndpoint] = useState('auto') // 'auto', 'gemini', 'vertex'
+  
+  // === HTML AD BUILDER STATES (Design Copilot) ===
+  const [htmlBuilderImage, setHtmlBuilderImage] = useState(null)
+  const [htmlBuilderImageBase64, setHtmlBuilderImageBase64] = useState(null)
+  const [htmlAdFormat, setHtmlAdFormat] = useState('1:1')
+  const [htmlPreviewBg, setHtmlPreviewBg] = useState('dark')
+  const [generatedHtml, setGeneratedHtml] = useState(null)
+  
+  // Design Copilot Chat states
+  const [designChatMessages, setDesignChatMessages] = useState([])
+  const [designChatInput, setDesignChatInput] = useState('')
+  const [designChatLoading, setDesignChatLoading] = useState(false)
+  const [designChatImage, setDesignChatImage] = useState(null) // Image for AI review
+  const [designChatImageBase64, setDesignChatImageBase64] = useState(null)
+  const [isDesignRecording, setIsDesignRecording] = useState(false) // Voice recording for Design Copilot
+  
   const fileInputRef = useRef(null)
   const pinterestInputRef = useRef(null)
   const backgroundInputRef = useRef(null)
@@ -64,12 +125,39 @@ export default function ImageStudio({ onBack }) {
   const chatImageInputRef = useRef(null)
   const chatEndRef = useRef(null)
   const speechRecognitionRef = useRef(null)
+  const designSpeechRecognitionRef = useRef(null) // For Design Copilot voice
+  const htmlBuilderInputRef = useRef(null)
+  const designChatEndRef = useRef(null)
+  const designChatInputRef = useRef(null)
+  const designChatImageInputRef = useRef(null)
   
   // Load prompts and presets on mount
   useEffect(() => {
     loadPromptLibrary()
     loadStylePresets()
     loadAvailableModels()
+  }, [])
+  
+  // === AUTH LISTENER ===
+  useEffect(() => {
+    const unsubscribe = onAuthChange(async (authUser) => {
+      setUser(authUser)
+      setAuthLoading(false)
+      if (authUser) {
+        // Load user's designs
+        loadUserDesigns(authUser.uid)
+        // Load AI learning context
+        loadAIContext(authUser.uid)
+        // Load user's conversations
+        loadUserConversations(authUser.uid)
+      } else {
+        setSavedDesigns([])
+        setAiLearningContext(null)
+        setConversations([])
+        setCurrentConversationId(null)
+      }
+    })
+    return () => unsubscribe()
   }, [])
   
   // Scroll to bottom of chat when new messages
@@ -109,6 +197,260 @@ export default function ImageStudio({ onBack }) {
     }
   }
   
+  // ═══════════════════════════════════════════════════════════════════
+  // AUTH & USER FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  const handleLogin = async () => {
+    const { error: authError } = await signInWithGoogle()
+    if (authError) {
+      setError('Error iniciando sesión: ' + authError)
+    } else {
+      setShowLoginModal(false)
+    }
+  }
+  
+  const handleLogout = async () => {
+    await logOut()
+    setUser(null)
+    setSavedDesigns([])
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // CONVERSATIONS MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════
+  
+  const loadUserConversations = async (userId) => {
+    setLoadingConversations(true)
+    const { conversations: convos, error: loadError } = await getUserConversations(userId, 50)
+    if (!loadError) {
+      setConversations(convos)
+    }
+    setLoadingConversations(false)
+  }
+  
+  const handleNewConversation = async () => {
+    if (!user) {
+      setShowLoginModal(true)
+      return
+    }
+    
+    // Clear current chat
+    setDesignChatMessages([])
+    setGeneratedHtml(null)
+    setCurrentConversationId(null)
+    
+    // Will create conversation on first message
+  }
+  
+  const handleSelectConversation = async (conversationId) => {
+    const { conversation, error: loadError } = await getConversation(conversationId)
+    if (loadError || !conversation) {
+      setError('Error cargando conversación')
+      return
+    }
+    
+    setCurrentConversationId(conversationId)
+    setDesignChatMessages(conversation.messages || [])
+    setGeneratedHtml(conversation.lastHtml || null)
+    setHtmlAdFormat(conversation.format || '1:1')
+  }
+  
+  const handleDeleteConversation = async (conversationId) => {
+    if (!confirm('¿Eliminar esta conversación?')) return
+    
+    const { error: deleteError } = await deleteConversation(conversationId)
+    if (!deleteError) {
+      setConversations(prev => prev.filter(c => c.id !== conversationId))
+      if (currentConversationId === conversationId) {
+        setCurrentConversationId(null)
+        setDesignChatMessages([])
+        setGeneratedHtml(null)
+      }
+    }
+  }
+  
+  const handleRenameConversation = async (conversationId, newTitle) => {
+    const { error: renameError } = await renameConversation(conversationId, newTitle)
+    if (!renameError) {
+      setConversations(prev => prev.map(c => 
+        c.id === conversationId ? { ...c, title: newTitle } : c
+      ))
+    }
+    setEditingConversationId(null)
+  }
+  
+  const saveCurrentConversation = async (messages, html = null) => {
+    if (!user) return
+    
+    if (currentConversationId) {
+      // Update existing conversation
+      await updateConversation(currentConversationId, {
+        messages,
+        lastHtml: html || generatedHtml,
+        format: htmlAdFormat
+      })
+    } else if (messages.length > 0) {
+      // Create new conversation
+      const firstUserMsg = messages.find(m => m.role === 'user')
+      const { id, error: createError } = await createConversation(user.uid, firstUserMsg)
+      if (!createError && id) {
+        setCurrentConversationId(id)
+        // Update with all messages
+        await updateConversation(id, {
+          messages,
+          lastHtml: html,
+          format: htmlAdFormat
+        })
+        // Refresh list
+        loadUserConversations(user.uid)
+      }
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // DESIGNS MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════
+  
+  const loadUserDesigns = async (userId) => {
+    setLoadingDesigns(true)
+    const { designs, error: loadError } = await getUserDesigns(userId, 100)
+    if (!loadError) {
+      setSavedDesigns(designs)
+      console.log(`Loaded ${designs.length} designs`)
+    } else {
+      console.error('Error loading designs:', loadError)
+      // Show error to user if it's an index error
+      if (loadError.includes('index')) {
+        setError('Firestore necesita un índice. Abre la consola del navegador (F12) para ver el link de creación.')
+      }
+    }
+    setLoadingDesigns(false)
+  }
+  
+  const loadAIContext = async (userId) => {
+    const { context } = await getAILearningContext(userId)
+    setAiLearningContext(context)
+  }
+  
+  const handleSaveDesign = async (html, projectName = '', description = '') => {
+    if (!user) {
+      setShowLoginModal(true)
+      return { saved: false }
+    }
+    
+    if (!html || html.trim().length < 50) {
+      console.log('Skipping save - HTML too short or empty')
+      return { saved: false }
+    }
+    
+    setSavingDesign(true)
+    setError(null) // Clear previous errors
+    
+    // Extract project name from chat if not provided
+    const extractedProject = extractProjectNameFromChat()
+    const finalProjectName = projectName || extractedProject || 'Sin nombre'
+    
+    // Extract description from chat if not provided
+    const finalDescription = description || designChatMessages
+      .filter(m => m.role === 'user')
+      .map(m => m.content)
+      .slice(-3)
+      .join(' | ')
+    
+    console.log('Saving design:', { projectName: finalProjectName, format: htmlAdFormat })
+    
+    const { id, error: saveError } = await saveDesign(user.uid, {
+      html,
+      format: htmlAdFormat,
+      projectName: finalProjectName,
+      description: finalDescription,
+      chatContext: designChatMessages.slice(-10), // Last 10 messages for context
+      imageBase64: htmlBuilderImageBase64
+    })
+    
+    setSavingDesign(false)
+    
+    if (saveError) {
+      console.error('Save error:', saveError)
+      setError('Error guardando diseño: ' + saveError)
+      return { saved: false }
+    }
+    
+    console.log('Design saved with ID:', id)
+    setLastSavedId(id)
+    // Show success indicator briefly
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 3000)
+    // Refresh designs list
+    await loadUserDesigns(user.uid)
+    return { saved: true, id }
+  }
+  
+  const extractProjectNameFromChat = () => {
+    // Try to extract project name from user messages
+    for (const msg of designChatMessages.filter(m => m.role === 'user')) {
+      const content = msg.content.toLowerCase()
+      // Common patterns
+      const patterns = [
+        /(?:proyecto|development|residencias?|departamentos?)\s+([\w\s]+)/i,
+        /(kulkana|velmari|alba|mistral|candela|costa|rosewood|amares|macondo|meliora)/i
+      ]
+      for (const pattern of patterns) {
+        const match = content.match(pattern)
+        if (match) return match[1].trim()
+      }
+    }
+    return ''
+  }
+  
+  const handleDeleteDesign = async (designId) => {
+    if (!confirm('¿Eliminar este diseño?')) return
+    
+    const { error: deleteError } = await deleteDesign(designId)
+    if (!deleteError) {
+      setSavedDesigns(prev => prev.filter(d => d.id !== designId))
+      if (selectedDesignForView?.id === designId) {
+        setSelectedDesignForView(null)
+      }
+    }
+  }
+  
+  const handleToggleFavorite = async (designId, isFavorite) => {
+    await toggleFavorite(designId, !isFavorite)
+    setSavedDesigns(prev => prev.map(d => 
+      d.id === designId ? { ...d, isFavorite: !isFavorite } : d
+    ))
+  }
+  
+  const handleRateDesign = async (designId, rating) => {
+    await rateDesign(designId, rating)
+    setSavedDesigns(prev => prev.map(d => 
+      d.id === designId ? { ...d, rating } : d
+    ))
+    // Refresh AI context after rating
+    if (user) loadAIContext(user.uid)
+  }
+  
+  const loadDesignToEditor = (design) => {
+    // Si es imagen generada/editada, cargar en la pestaña de generación
+    if (design.type === 'generated-image' || design.type === 'edited-image') {
+      if (design.imageBase64) {
+        setGeneratedImage(design.imageBase64)
+      }
+      if (design.description) {
+        setPrompt(design.description)
+      }
+      setMainTab('imageGenerator')
+    } else {
+      // Es diseño HTML, cargar en editor
+      setGeneratedHtml(design.html)
+      setHtmlAdFormat(design.format || '1:1')
+      setMainTab('htmlBuilder')
+    }
+    setSelectedDesignForView(null)
+  }
+  
   // Handle reference image upload
   const handleImageUpload = (e) => {
     const file = e.target.files[0]
@@ -135,14 +477,15 @@ export default function ImageStudio({ onBack }) {
     setError(null)
     
     try {
-      // Use v2 endpoint with model selection
+      // Use v2 endpoint with model selection and API endpoint
       const resp = await fetch('http://localhost:8000/api/studio/generate-image-v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: prompt,
           aspect_ratio: '1:1',
-          model: selectedImageModel
+          model: selectedImageModel,
+          api_endpoint: selectedApiEndpoint
         })
       })
       
@@ -152,14 +495,36 @@ export default function ImageStudio({ onBack }) {
         const imageUrl = `data:${data.mime_type};base64,${data.image_base64}`
         setGeneratedImage(imageUrl)
         
-        // Add to history
+        // Add to history with API info
         setHistory(prev => [{
           type: 'generate',
           prompt: prompt,
           image: imageUrl,
           model: data.model_used || selectedImageModel,
+          api: data.api_used || 'Unknown',
           timestamp: new Date().toISOString()
         }, ...prev.slice(0, 9)])
+        
+        // Auto-save generated image if user is logged in
+        if (user) {
+          const { id, error: saveErr } = await saveDesign(user.uid, {
+            html: '', // No HTML for generated images
+            format: '1:1',
+            projectName: 'Imagen Generada',
+            description: prompt.substring(0, 200),
+            tags: ['imagen-generada', selectedImageModel],
+            imageBase64: data.image_base64,
+            type: 'generated-image'
+          })
+          if (id) {
+            console.log('✅ Imagen generada guardada:', id)
+            setSaveSuccess(true)
+            setTimeout(() => setSaveSuccess(false), 3000)
+            loadUserDesigns(user.uid)
+          } else if (saveErr) {
+            console.log('Imagen no guardada (posiblemente muy grande):', saveErr)
+          }
+        }
       } else {
         setError(data.error || 'Error generando imagen')
       }
@@ -210,6 +575,27 @@ export default function ImageStudio({ onBack }) {
           reference: referenceImage,
           timestamp: new Date().toISOString()
         }, ...prev.slice(0, 9)])
+        
+        // Auto-save edited image if user is logged in
+        if (user) {
+          const { id, error: saveErr } = await saveDesign(user.uid, {
+            html: '',
+            format: '1:1',
+            projectName: 'Imagen Editada',
+            description: `${selectedPreset}: ${prompt.substring(0, 150)}`,
+            tags: ['imagen-editada', selectedPreset],
+            imageBase64: data.image_base64,
+            type: 'edited-image'
+          })
+          if (id) {
+            console.log('✅ Imagen editada guardada:', id)
+            setSaveSuccess(true)
+            setTimeout(() => setSaveSuccess(false), 3000)
+            loadUserDesigns(user.uid)
+          } else if (saveErr) {
+            console.log('Imagen no guardada (posiblemente muy grande):', saveErr)
+          }
+        }
       } else {
         setError(data.error || 'Error editando imagen')
       }
@@ -621,8 +1007,372 @@ export default function ImageStudio({ onBack }) {
     setMode('edit')
   }
 
+  // === HTML AD BUILDER FUNCTIONS ===
+  
+  // Handle HTML Builder image upload
+  const handleHtmlBuilderImageUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setHtmlBuilderImage(event.target.result)
+      setHtmlBuilderImageBase64(event.target.result.split(',')[1])
+    }
+    reader.readAsDataURL(file)
+  }
+  
+  // Copy HTML to clipboard
+  const copyHtmlToClipboard = () => {
+    if (generatedHtml) {
+      navigator.clipboard.writeText(generatedHtml)
+      alert('✅ HTML copiado al portapapeles')
+    }
+  }
+  
+  // Download HTML file
+  const downloadHtml = () => {
+    if (generatedHtml) {
+      const blob = new Blob([generatedHtml], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `anuncio_${htmlAdFormat}.html`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+  
+  // Get REAL dimensions for the HTML (what it's designed for)
+  const getRealDimensions = () => {
+    const dims = {
+      '1:1': { width: 1080, height: 1080 },
+      '9:16': { width: 1080, height: 1920 },
+      '16:9': { width: 1920, height: 1080 },
+      '4:3': { width: 1440, height: 1080 }
+    }
+    return dims[htmlAdFormat] || dims['1:1']
+  }
+  
+  // Get scale factor to fit preview in container (max 450px)
+  const getPreviewScale = () => {
+    const real = getRealDimensions()
+    const maxSize = 450
+    const scaleW = maxSize / real.width
+    const scaleH = maxSize / real.height
+    return Math.min(scaleW, scaleH)
+  }
+  
+  // Get preview container size (after scaling)
+  const getPreviewDimensions = () => {
+    const real = getRealDimensions()
+    const scale = getPreviewScale()
+    return {
+      width: real.width * scale,
+      height: real.height * scale
+    }
+  }
+
+  // === DESIGN COPILOT FUNCTIONS ===
+  
+  // Scroll design chat to bottom
+  useEffect(() => {
+    designChatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [designChatMessages])
+  
+  // Handle paste event for images in design chat
+  const handleDesignChatPaste = (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            setDesignChatImage(event.target.result)
+            setDesignChatImageBase64(event.target.result.split(',')[1])
+          }
+          reader.readAsDataURL(file)
+        }
+        break
+      }
+    }
+  }
+  
+  // Handle image upload for design chat
+  const handleDesignChatImageUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setDesignChatImage(event.target.result)
+      setDesignChatImageBase64(event.target.result.split(',')[1])
+    }
+    reader.readAsDataURL(file)
+  }
+  
+  // Clear design chat image
+  const clearDesignChatImage = () => {
+    setDesignChatImage(null)
+    setDesignChatImageBase64(null)
+  }
+  
+  // Voice-to-text for Design Copilot chat
+  const toggleDesignRecording = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    
+    if (!SpeechRecognition) {
+      alert('Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.')
+      return
+    }
+    
+    if (isDesignRecording) {
+      // Stop recording
+      if (designSpeechRecognitionRef.current) {
+        designSpeechRecognitionRef.current.stop()
+        designSpeechRecognitionRef.current = null
+      }
+      setIsDesignRecording(false)
+    } else {
+      // Start recording
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'es-MX'
+      recognition.continuous = true // Allow longer dictation
+      recognition.interimResults = true
+      
+      recognition.onresult = (event) => {
+        let transcript = ''
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        setDesignChatInput(transcript)
+      }
+      
+      recognition.onerror = (event) => {
+        console.error('Design speech error:', event.error)
+        if (event.error === 'not-allowed') {
+          alert('Permiso de micrófono denegado. Habilítalo en tu navegador.')
+        }
+        setIsDesignRecording(false)
+        designSpeechRecognitionRef.current = null
+      }
+      
+      recognition.onend = () => {
+        setIsDesignRecording(false)
+        designSpeechRecognitionRef.current = null
+      }
+      
+      try {
+        designSpeechRecognitionRef.current = recognition
+        recognition.start()
+        setIsDesignRecording(true)
+      } catch (err) {
+        console.error('Error starting design speech:', err)
+        alert('Error al iniciar reconocimiento de voz')
+      }
+    }
+  }
+  
+  // Send message to Design Copilot chat - SMART VERSION
+  const sendDesignChatMessage = async () => {
+    if (!designChatInput.trim() && !designChatImageBase64) return
+    
+    // Determine if this is an image review request
+    const hasReviewImage = !!designChatImageBase64
+    
+    const userMessage = {
+      role: 'user',
+      content: designChatInput || (hasReviewImage ? '📷 Revisa esta captura y sugiere mejoras' : ''),
+      timestamp: new Date().toLocaleTimeString(),
+      hasImage: hasReviewImage
+    }
+    
+    const messageToSend = designChatInput || (hasReviewImage ? 'Revisa esta captura del diseño actual y sugiere qué se puede mejorar.' : '')
+    setDesignChatInput('')
+    
+    // Clear the review image after sending
+    const imageForReview = designChatImageBase64
+    clearDesignChatImage()
+    
+    setDesignChatMessages(prev => [...prev, userMessage])
+    setDesignChatLoading(true)
+    
+    try {
+      // Get dimensions for format
+      const dimensions = {
+        "1:1": { width: 1080, height: 1080 },
+        "9:16": { width: 1080, height: 1920 },
+        "16:9": { width: 1920, height: 1080 },
+        "4:3": { width: 1440, height: 1080 }
+      }
+      const dims = dimensions[htmlAdFormat] || dimensions["1:1"]
+      
+      // Get AI learning context if available
+      const aiContextPrompt = aiLearningContext 
+        ? formatContextForPrompt(aiLearningContext)
+        : ''
+
+      const systemPrompt = `Eres un Design Copilot experto en crear anuncios HTML para bienes raíces de lujo en Riviera Maya.
+
+FORMATO ACTUAL: ${dims.width}x${dims.height}px (${htmlAdFormat})
+
+⚠️ REGLA CRÍTICA - FONDO:
+- NUNCA uses background-image
+- NUNCA uses url() para imágenes
+- NUNCA referencias a archivos de imagen
+- SOLO usa background con gradientes CSS puros
+
+FONDO CORRECTO (usar exactamente esto):
+background: radial-gradient(ellipse at center top, #1a1a2e 0%, #0a0a0a 50%, #000000 100%);
+
+TU TRABAJO: Generar HTML COMPLETO y listo para usar.
+
+CUANDO EL USUARIO DESCRIBE UN PROYECTO:
+- Genera HTML completo con la información
+- Fondo: SOLO gradiente CSS (NO imágenes)
+- Colores de acento: dorado (#d4af37) o el que pida
+- Tipografías: Cormorant Garamond (headlines), DM Sans (textos)
+- Incluye: eyebrow, headline, subheadline, badges/pills, precio, botón CTA
+
+CUANDO EL USUARIO PIDE MODIFICACIONES:
+- Modifica el HTML actual según lo que pide
+- "quítale X" → elimina ese elemento
+- "cambia X por Y" → modifica el contenido
+
+CUANDO EL USUARIO SUBE UNA CAPTURA/IMAGEN PARA REVISIÓN:
+- Analiza la imagen del diseño actual
+- Identifica áreas de mejora: tipografía, espaciado, jerarquía visual, colores, composición
+- Sugiere cambios específicos y genera el HTML mejorado
+- Sé específico: "el headline está muy pequeño", "el botón debería tener más contraste", etc.
+${aiContextPrompt}
+HTML ACTUAL (si existe):
+${generatedHtml ? '```html\n' + generatedHtml + '\n```' : '(Ninguno aún - genera uno nuevo)'}
+
+ESTRUCTURA HTML REQUERIDA:
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: ${dims.width}px;
+      height: ${dims.height}px;
+      background: radial-gradient(ellipse at center top, #1a1a2e 0%, #0a0a0a 50%, #000000 100%);
+      /* NUNCA usar background-image con url() */
+      font-family: 'DM Sans', sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 60px;
+    }
+    /* ... resto de estilos ... */
+  </style>
+</head>
+<body>
+  <!-- contenido -->
+</body>
+</html>
+\`\`\`
+
+RESPUESTA:
+- Breve confirmación (1 línea)
+- HTML completo en bloque \`\`\`html ... \`\`\``
+
+      const resp = await fetch('http://localhost:8000/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageToSend,
+          model: 'gemini-2.5-pro',
+          history: designChatMessages.slice(-4).map(m => ({ role: m.role, content: m.content })),
+          system_prompt: systemPrompt,
+          image_base64: imageForReview || htmlBuilderImageBase64 // Prioritize review screenshot
+        })
+      })
+      
+      const data = await resp.json()
+      
+      if (data.success || data.response) {
+        const aiResponse = data.response
+        
+        // Try to extract HTML from response
+        const htmlMatch = aiResponse.match(/```html\s*([\s\S]*?)\s*```/)
+        let extractedHtml = null
+        
+        if (htmlMatch) {
+          extractedHtml = htmlMatch[1].trim()
+          // Set the HTML to the preview
+          setGeneratedHtml(extractedHtml)
+          
+          // Auto-save design if user is logged in
+          if (user) {
+            handleSaveDesign(extractedHtml)
+          }
+        }
+        
+        // Clean response for display (remove HTML block for chat)
+        let cleanResponse = aiResponse.replace(/```html[\s\S]*?```/g, '').trim()
+        
+        // If we extracted HTML, add a note
+        if (extractedHtml) {
+          cleanResponse = cleanResponse || '✅ HTML generado'
+          cleanResponse += '\n\n📄 *HTML actualizado en el preview*'
+          if (user) {
+            cleanResponse += '\n💾 *Guardado automáticamente*'
+          }
+        }
+        
+        const aiMessage = {
+          role: 'assistant',
+          content: cleanResponse,
+          timestamp: new Date().toLocaleTimeString(),
+          hasHtml: !!extractedHtml
+        }
+        
+        // Update messages and save conversation
+        setDesignChatMessages(prev => {
+          const newMessages = [...prev, aiMessage]
+          // Save conversation asynchronously
+          saveCurrentConversation(newMessages, extractedHtml)
+          return newMessages
+        })
+      }
+    } catch (err) {
+      setDesignChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Error: ${err.message}`,
+        timestamp: new Date().toLocaleTimeString()
+      }])
+    } finally {
+      setDesignChatLoading(false)
+    }
+  }
+  
   return (
     <div className="image-studio">
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="login-modal-overlay" onClick={() => setShowLoginModal(false)}>
+          <div className="login-modal" onClick={e => e.stopPropagation()}>
+            <h2>🔐 Iniciar Sesión</h2>
+            <p>Inicia sesión para guardar tus diseños y que la IA aprenda de tu estilo</p>
+            <button className="google-login-btn" onClick={handleLogin}>
+              <span>G</span> Continuar con Google
+            </button>
+            <button className="close-modal-btn" onClick={() => setShowLoginModal(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="studio-header">
         <button className="back-btn" onClick={onBack}>
@@ -631,6 +1381,32 @@ export default function ImageStudio({ onBack }) {
         <div className="studio-title">
           <h1>🎨 AI Image Studio</h1>
           <p>Genera y edita imágenes con IA para tus proyectos</p>
+        </div>
+        
+        {/* User Profile / Login */}
+        <div className="user-section">
+          {authLoading ? (
+            <span className="auth-loading">...</span>
+          ) : user ? (
+            <div className="user-profile">
+              <img 
+                src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || 'U'}`} 
+                alt="Profile" 
+                className="user-avatar"
+              />
+              <div className="user-info">
+                <span className="user-name">{user.displayName || user.email}</span>
+                <span className="user-designs">{savedDesigns.length} diseños</span>
+              </div>
+              <button className="logout-btn" onClick={handleLogout}>
+                Salir
+              </button>
+            </div>
+          ) : (
+            <button className="login-btn" onClick={() => setShowLoginModal(true)}>
+              🔐 Iniciar sesión
+            </button>
+          )}
         </div>
       </div>
       
@@ -660,10 +1436,142 @@ export default function ImageStudio({ onBack }) {
         >
           🤖 Marketing AI
         </button>
+        <button 
+          className={`main-tab ${mainTab === 'htmlBuilder' ? 'active' : ''}`}
+          onClick={() => setMainTab('htmlBuilder')}
+        >
+          🎨 Design Copilot
+        </button>
+        <button 
+          className={`main-tab ${mainTab === 'gallery' ? 'active' : ''}`}
+          onClick={() => setMainTab('gallery')}
+          style={{ marginLeft: 'auto' }}
+        >
+          📚 Mis Diseños {savedDesigns.length > 0 && <span className="badge">{savedDesigns.length}</span>}
+        </button>
       </div>
       
-      {/* MARKETING AI CHAT TAB */}
-      {mainTab === 'chat' ? (
+      {/* GALLERY TAB */}
+      {mainTab === 'gallery' ? (
+        <div className="designs-gallery">
+          <div className="gallery-header">
+            <div>
+              <h2>📚 Mis Diseños Guardados</h2>
+              <p>Todos tus diseños HTML • La IA aprende de los mejor calificados ⭐</p>
+            </div>
+            {aiLearningContext && aiLearningContext.totalDesigns > 0 && (
+              <div className="ai-learning-status">
+                <span>🧠</span>
+                <span>IA aprendiendo de {aiLearningContext.totalDesigns} diseños favoritos</span>
+              </div>
+            )}
+          </div>
+          
+          {!user ? (
+            <div className="gallery-login-prompt">
+              <span>🔐</span>
+              <h3>Inicia sesión para ver tus diseños</h3>
+              <p>Guarda tus diseños y permite que la IA aprenda de tu estilo</p>
+              <button onClick={() => setShowLoginModal(true)}>
+                Iniciar sesión con Google
+              </button>
+            </div>
+          ) : loadingDesigns ? (
+            <div className="gallery-loading">
+              <span>⏳</span>
+              <p>Cargando diseños...</p>
+            </div>
+          ) : savedDesigns.length === 0 ? (
+            <div className="gallery-empty">
+              <span>🎨</span>
+              <h3>Aún no tienes diseños guardados</h3>
+              <p>Ve a Design Copilot y crea tu primer anuncio HTML</p>
+              <button onClick={() => setMainTab('htmlBuilder')}>
+                Ir a Design Copilot
+              </button>
+            </div>
+          ) : (
+            <div className="designs-grid">
+              {savedDesigns.map(design => (
+                <div key={design.id} className="design-card">
+                  <div className="design-preview-mini">
+                    {/* Mostrar imagen generada o HTML según el tipo */}
+                    {design.imageBase64 ? (
+                      <img 
+                        src={design.imageBase64}
+                        alt={design.projectName || 'Diseño'}
+                        className="design-preview-img"
+                      />
+                    ) : design.html ? (
+                      <iframe
+                        srcDoc={design.html}
+                        title={design.projectName}
+                        style={{
+                          width: '1080px',
+                          height: '1080px',
+                          border: 'none',
+                          transform: 'scale(0.2)',
+                          transformOrigin: 'top left',
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    ) : (
+                      <div className="design-no-preview">
+                        <span>🖼️</span>
+                        <p>Sin preview</p>
+                      </div>
+                    )}
+                    {/* Badge de tipo */}
+                    <div className={`design-type-badge ${design.type || 'html-design'}`}>
+                      {design.type === 'generated-image' ? '🤖 IA' : 
+                       design.type === 'edited-image' ? '✏️ Edit' : '📝 HTML'}
+                    </div>
+                  </div>
+                  
+                  <div className="design-card-info">
+                    <h4>{design.projectName || 'Sin nombre'}</h4>
+                    <p className="design-format">
+                      {design.format || 'custom'} • {design.createdAt ? new Date(design.createdAt).toLocaleDateString() : 'Sin fecha'}
+                    </p>
+                    <p className="design-desc">{design.description?.slice(0, 80) || 'Sin descripción'}...</p>
+                  </div>
+                  
+                  <div className="design-card-actions">
+                    <button 
+                      className={`fav-btn ${design.isFavorite ? 'active' : ''}`}
+                      onClick={() => handleToggleFavorite(design.id, design.isFavorite)}
+                    >
+                      {design.isFavorite ? '❤️' : '🤍'}
+                    </button>
+                    
+                    <div className="rating">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <button
+                          key={star}
+                          className={`star ${(design.rating || 0) >= star ? 'active' : ''}`}
+                          onClick={() => handleRateDesign(design.id, star)}
+                        >
+                          ⭐
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <button className="edit-btn" onClick={() => loadDesignToEditor(design)}>
+                      ✏️ Editar
+                    </button>
+                    <button className="delete-btn" onClick={() => handleDeleteDesign(design.id)}>
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) :
+      
+      /* MARKETING AI CHAT TAB */
+      mainTab === 'chat' ? (
         <div className="chat-container">
           <div className="chat-sidebar">
             <div className="chat-sidebar-header">
@@ -821,6 +1729,341 @@ export default function ImageStudio({ onBack }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      ) :
+      
+      /* HTML AD BUILDER TAB - DESIGN COPILOT */
+      mainTab === 'htmlBuilder' ? (
+        <div className="design-copilot">
+          {/* Conversations Sidebar */}
+          {user && (
+            <div className={`conversations-sidebar ${showConversationsSidebar ? 'open' : 'collapsed'}`}>
+              <div className="sidebar-header">
+                <button 
+                  className="toggle-sidebar"
+                  onClick={() => setShowConversationsSidebar(!showConversationsSidebar)}
+                >
+                  {showConversationsSidebar ? '◀' : '▶'}
+                </button>
+                {showConversationsSidebar && (
+                  <>
+                    <span>💬 Conversaciones</span>
+                    <button className="new-chat-btn" onClick={handleNewConversation}>
+                      ＋
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {showConversationsSidebar && (
+                <div className="conversations-list">
+                  {loadingConversations ? (
+                    <div className="loading-convos">Cargando...</div>
+                  ) : conversations.length === 0 ? (
+                    <div className="no-convos">
+                      <p>Sin conversaciones</p>
+                      <small>Empieza una nueva</small>
+                    </div>
+                  ) : (
+                    conversations.map(convo => (
+                      <div 
+                        key={convo.id}
+                        className={`convo-item ${currentConversationId === convo.id ? 'active' : ''}`}
+                        onClick={() => handleSelectConversation(convo.id)}
+                      >
+                        {editingConversationId === convo.id ? (
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onBlur={() => handleRenameConversation(convo.id, editingTitle)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRenameConversation(convo.id, editingTitle)
+                              if (e.key === 'Escape') setEditingConversationId(null)
+                            }}
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <>
+                            <div className="convo-info">
+                              <span className="convo-title">{convo.title}</span>
+                              <span className="convo-date">
+                                {convo.updatedAt?.toLocaleDateString?.() || ''}
+                              </span>
+                            </div>
+                            <div className="convo-actions">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingConversationId(convo.id)
+                                  setEditingTitle(convo.title)
+                                }}
+                              >
+                                ✏️
+                              </button>
+                              <button onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteConversation(convo.id)
+                              }}>
+                                🗑️
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Left Panel - Chat & Controls */}
+          <div className="copilot-left">
+            {/* Header with Image Upload */}
+            <div className="copilot-header">
+              <div className="copilot-title">
+                <span>🎨</span>
+                <div>
+                  <h2>Design Copilot</h2>
+                  <p>Crea anuncios HTML con IA</p>
+                </div>
+              </div>
+              
+              {/* Compact Image Upload */}
+              <div 
+                className={`copilot-image-upload ${htmlBuilderImage ? 'has-image' : ''}`}
+                onClick={() => htmlBuilderInputRef.current?.click()}
+              >
+                {htmlBuilderImage ? (
+                  <>
+                    <img src={htmlBuilderImage} alt="Fondo" />
+                    <span className="change-badge">Cambiar</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📷</span>
+                    <span>Subir imagen</span>
+                    <span className="upload-hint">Para análisis de colores</span>
+                  </>
+                )}
+              </div>
+              <input
+                ref={htmlBuilderInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleHtmlBuilderImageUpload}
+                style={{ display: 'none' }}
+              />
+            </div>
+            
+            {/* Format Selector - Compact */}
+            <div className="copilot-formats">
+              {['1:1', '9:16', '16:9', '4:3'].map(fmt => (
+                <button
+                  key={fmt}
+                  className={`format-chip ${htmlAdFormat === fmt ? 'active' : ''}`}
+                  onClick={() => setHtmlAdFormat(fmt)}
+                >
+                  {fmt}
+                </button>
+              ))}
+            </div>
+            
+            {/* Design Chat - MAIN CONTROLLER */}
+            <div className="design-chat main-chat">
+              <div className="chat-messages-area">
+                {designChatMessages.length === 0 ? (
+                  <div className="chat-empty">
+                    <span>🎨</span>
+                    <h3>Design Copilot</h3>
+                    <p>Describe tu proyecto y generaré el anuncio HTML</p>
+                    <div className="quick-suggestions">
+                      <button onClick={() => setDesignChatInput('Proyecto en Cancún zona sur, departamentos desde $2.5M MXN, entrega inmediata, 0% de enganche')}>
+                        🏠 Ejemplo: Cancún
+                      </button>
+                      <button onClick={() => setDesignChatInput('Residencias de lujo en Tulum, preventa desde $4.8M MXN, amenidades premium, ROI garantizado')}>
+                        🌴 Ejemplo: Tulum
+                      </button>
+                      <button onClick={() => setDesignChatInput('Penthouses frente al mar en Puerto Aventuras, desde $8M MXN, vista al Caribe')}>
+                        🌊 Ejemplo: Penthouse
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  designChatMessages.map((msg, idx) => (
+                    <div key={idx} className={`design-message ${msg.role}`}>
+                      <span className="msg-icon">{msg.role === 'user' ? '👤' : '🤖'}</span>
+                      <div className="msg-content">
+                        {msg.hasImage && <span className="image-badge">📷 Imagen adjunta</span>}
+                        <p>{msg.content}</p>
+                        {msg.hasHtml && (
+                          <span className="html-badge">
+                            ✅ HTML actualizado en preview
+                          </span>
+                        )}
+                        <span className="msg-time">{msg.timestamp}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {designChatLoading && (
+                  <div className="design-message assistant">
+                    <span className="msg-icon">🤖</span>
+                    <div className="msg-content typing">
+                      <span></span><span></span><span></span>
+                    </div>
+                  </div>
+                )}
+                <div ref={designChatEndRef} />
+              </div>
+              
+              {/* Image Preview (if pasted/uploaded) */}
+              {designChatImage && (
+                <div className="chat-image-preview">
+                  <img src={designChatImage} alt="Para revisión" />
+                  <button className="remove-image" onClick={clearDesignChatImage}>✕</button>
+                  <span className="preview-label">📷 Imagen para revisión</span>
+                </div>
+              )}
+              
+              {/* Chat Input */}
+              <div className="design-chat-input">
+                <button 
+                  className="upload-image-btn"
+                  onClick={() => designChatImageInputRef.current?.click()}
+                  title="Subir captura para revisión"
+                >
+                  📷
+                </button>
+                <input
+                  ref={designChatImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDesignChatImageUpload}
+                  style={{ display: 'none' }}
+                />
+                <button 
+                  className={`mic-btn ${isDesignRecording ? 'recording' : ''}`}
+                  onClick={toggleDesignRecording}
+                  title={isDesignRecording ? 'Detener dictado' : 'Dictar mensaje (voz a texto)'}
+                >
+                  {isDesignRecording ? '⏹️' : '🎤'}
+                </button>
+                <textarea
+                  ref={designChatInputRef}
+                  placeholder={designChatImage ? "Describe qué quieres mejorar..." : "Describe el proyecto o dicta con 🎤... (Ctrl+V para captura)"}
+                  value={designChatInput}
+                  onChange={(e) => setDesignChatInput(e.target.value)}
+                  onPaste={handleDesignChatPaste}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      sendDesignChatMessage()
+                    }
+                  }}
+                  rows={1}
+                  onInput={(e) => {
+                    e.target.style.height = 'auto'
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+                  }}
+                />
+                <button 
+                  onClick={sendDesignChatMessage}
+                  disabled={designChatLoading || (!designChatInput.trim() && !designChatImageBase64)}
+                >
+                  {designChatLoading ? '⏳' : '➤'}
+                </button>
+              </div>
+            </div>
+            
+            {/* Status messages */}
+            {savingDesign && (
+              <div className="saving-indicator">💾 Guardando diseño...</div>
+            )}
+            {saveSuccess && (
+              <div className="save-success">✅ Diseño guardado ({savedDesigns.length} en total)</div>
+            )}
+            {error && <div className="error-msg">{error}</div>}
+          </div>
+          
+          {/* Right Panel - Live Preview */}
+          <div className="copilot-right">
+            <div className="preview-toolbar">
+              <div className="preview-title">
+                <span>👁️</span>
+                <span>Vista Previa</span>
+              </div>
+              <div className="preview-bg-toggle">
+                {[
+                  { id: 'dark', icon: '🌙', label: 'Oscuro' },
+                  { id: 'light', icon: '☀️', label: 'Claro' },
+                  { id: 'checker', icon: '🔲', label: 'Checker' }
+                ].map(bg => (
+                  <button
+                    key={bg.id}
+                    className={htmlPreviewBg === bg.id ? 'active' : ''}
+                    onClick={() => setHtmlPreviewBg(bg.id)}
+                    title={bg.label}
+                  >
+                    {bg.icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className={`preview-canvas bg-${htmlPreviewBg}`}>
+              {generatedHtml ? (
+                <div 
+                  className="preview-frame-container"
+                  style={{
+                    width: getPreviewDimensions().width,
+                    height: getPreviewDimensions().height,
+                    overflow: 'hidden',
+                    borderRadius: '12px',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  <iframe
+                    srcDoc={generatedHtml}
+                    title="HTML Preview"
+                    style={{
+                      width: getRealDimensions().width,
+                      height: getRealDimensions().height,
+                      border: 'none',
+                      transform: `scale(${getPreviewScale()})`,
+                      transformOrigin: 'top left'
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="preview-empty">
+                  <span>🎨</span>
+                  <p>Tu anuncio aparecerá aquí</p>
+                  <small>Describe tu proyecto en el chat para generar el HTML</small>
+                </div>
+              )}
+            </div>
+            
+            {generatedHtml && (
+              <div className="preview-actions">
+                <button className="action-btn" onClick={copyHtmlToClipboard}>
+                  📋 Copiar
+                </button>
+                <button className="action-btn" onClick={downloadHtml}>
+                  💾 Descargar
+                </button>
+                <button className="action-btn secondary" onClick={() => {
+                  // Open code view
+                  const w = window.open('', '_blank')
+                  w.document.write(`<pre style="background:#1a1a2e;color:#fff;padding:20px;white-space:pre-wrap;">${generatedHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`)
+                }}>
+                  {'</>'} Ver código
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) :
@@ -1164,6 +2407,23 @@ export default function ImageStudio({ onBack }) {
             </select>
           </div>
           
+          {/* API Endpoint Selector */}
+          <div className="model-select-section">
+            <label className="section-label">🔌 API Endpoint</label>
+            <select 
+              className="model-select"
+              value={selectedApiEndpoint}
+              onChange={(e) => setSelectedApiEndpoint(e.target.value)}
+            >
+              <option value="auto">🔄 Auto (usa la primera disponible)</option>
+              <option value="gemini">💎 Gemini API (AIza...)</option>
+              <option value="vertex">⚡ Vertex AI (AQ...)</option>
+            </select>
+            <small style={{color: '#888', fontSize: '11px', marginTop: '4px', display: 'block'}}>
+              Prueba ambas APIs para comparar calidad
+            </small>
+          </div>
+          
           {/* Action Button */}
           <button 
             className="generate-btn"
@@ -1268,11 +2528,17 @@ export default function ImageStudio({ onBack }) {
                     key={idx} 
                     className="history-item"
                     onClick={() => setGeneratedImage(item.image)}
+                    title={`${item.model}\n${item.api || ''}\n${item.prompt?.slice(0, 50)}...`}
                   >
                     <img src={item.image} alt={`History ${idx}`} />
                     <div className="history-badge">
                       {item.type === 'generate' ? '✨' : '🖼️'}
                     </div>
+                    {item.api && (
+                      <div className="history-api-badge">
+                        {item.api === 'Vertex AI' ? '⚡' : '💎'}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1677,6 +2943,16 @@ export default function ImageStudio({ onBack }) {
           padding: 2px 6px;
           border-radius: 10px;
           font-size: 0.7rem;
+        }
+        
+        .history-api-badge {
+          position: absolute;
+          bottom: 5px;
+          right: 5px;
+          background: rgba(0,0,0,0.7);
+          padding: 2px 6px;
+          border-radius: 10px;
+          font-size: 0.6rem;
         }
         
         @media (max-width: 1000px) {
@@ -2451,6 +3727,804 @@ export default function ImageStudio({ onBack }) {
           
           .chat-main {
             height: 60vh;
+          }
+        }
+        
+        /* === DESIGN COPILOT STYLES === */
+        .design-copilot {
+          display: flex;
+          gap: 0;
+          max-width: 1800px;
+          margin: 0 auto;
+          padding: 20px;
+          height: calc(100vh - 200px);
+        }
+        
+        /* Left Panel */
+        .copilot-left {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          background: rgba(0,0,0,0.3);
+          border-radius: 16px;
+          padding: 20px;
+          overflow: hidden;
+          width: 420px;
+          min-width: 420px;
+        }
+        
+        /* Right Panel */
+        .copilot-right {
+          flex: 1;
+          margin-left: 24px;
+        }
+        
+        .copilot-header {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        
+        .copilot-title {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1;
+        }
+        
+        .copilot-title span {
+          font-size: 2rem;
+        }
+        
+        .copilot-title h2 {
+          margin: 0;
+          font-size: 1.3rem;
+          color: #d4af37;
+        }
+        
+        .copilot-title p {
+          margin: 0;
+          font-size: 0.8rem;
+          opacity: 0.6;
+        }
+        
+        .copilot-image-upload {
+          width: 80px;
+          height: 80px;
+          border: 2px dashed rgba(255,255,255,0.3);
+          border-radius: 12px;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          transition: all 0.2s;
+          font-size: 0.7rem;
+          color: rgba(255,255,255,0.5);
+          position: relative;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+        
+        .copilot-image-upload:hover {
+          border-color: #d4af37;
+          background: rgba(212,175,55,0.1);
+        }
+        
+        .copilot-image-upload.has-image {
+          border: none;
+          padding: 0;
+        }
+        
+        .copilot-image-upload.has-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        
+        .copilot-image-upload .change-badge {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(0,0,0,0.8);
+          padding: 4px;
+          font-size: 0.65rem;
+          text-align: center;
+        }
+        
+        .copilot-image-upload .upload-hint {
+          font-size: 0.65rem;
+          opacity: 0.5;
+          margin-top: 2px;
+        }
+        
+        /* Format chips */
+        .copilot-formats {
+          display: flex;
+          gap: 8px;
+        }
+        
+        .format-chip {
+          flex: 1;
+          padding: 8px 12px;
+          border: 1px solid rgba(255,255,255,0.2);
+          background: transparent;
+          color: rgba(255,255,255,0.7);
+          border-radius: 20px;
+          cursor: pointer;
+          font-size: 0.8rem;
+          transition: all 0.2s;
+        }
+        
+        .format-chip:hover {
+          border-color: #d4af37;
+        }
+        
+        .format-chip.active {
+          background: rgba(212,175,55,0.2);
+          border-color: #d4af37;
+          color: #d4af37;
+        }
+        
+        /* Quick Form */
+        .quick-form-section {
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 12px;
+          overflow: hidden;
+        }
+        
+        .toggle-form-btn {
+          width: 100%;
+          padding: 12px 16px;
+          background: rgba(255,255,255,0.05);
+          border: none;
+          color: #fff;
+          font-size: 0.9rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          text-align: left;
+        }
+        
+        .toggle-form-btn:hover {
+          background: rgba(255,255,255,0.1);
+        }
+        
+        .ai-fill-all {
+          margin-left: auto;
+          padding: 6px 12px;
+          background: linear-gradient(135deg, #d4af37, #b8962d);
+          color: #000;
+          border-radius: 16px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        
+        .ai-fill-all:hover {
+          transform: scale(1.05);
+        }
+        
+        .quick-fields {
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          background: rgba(0,0,0,0.2);
+          max-height: 400px;
+          overflow-y: auto;
+        }
+        
+        .quick-field .field-row {
+          display: flex;
+          gap: 8px;
+        }
+        
+        .quick-field input {
+          flex: 1;
+          padding: 10px 12px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: rgba(0,0,0,0.3);
+          color: #fff;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          font-family: inherit;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .quick-field input:focus {
+          outline: none;
+          border-color: #d4af37;
+        }
+        
+        .quick-field textarea.scrollable-input {
+          flex: 1;
+          padding: 10px 12px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: rgba(0,0,0,0.3);
+          color: #fff;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          font-family: inherit;
+          min-width: 0;
+          resize: none;
+          overflow-y: auto;
+          min-height: 38px;
+          max-height: 80px;
+        }
+        
+        .quick-field textarea.scrollable-input:focus {
+          outline: none;
+          border-color: #d4af37;
+        }
+        
+        .ai-btn {
+          width: 36px;
+          height: 36px;
+          border: 1px solid rgba(212,175,55,0.4);
+          background: rgba(212,175,55,0.1);
+          color: #d4af37;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.2s;
+          flex-shrink: 0;
+        }
+        
+        .ai-btn:hover:not(:disabled) {
+          background: rgba(212,175,55,0.2);
+          transform: scale(1.05);
+        }
+        
+        .ai-btn:disabled {
+          opacity: 0.5;
+          cursor: wait;
+        }
+        
+        .ai-btn.small {
+          width: auto;
+          height: auto;
+          padding: 4px 8px;
+          font-size: 0.7rem;
+        }
+        
+        /* Pills Field */
+        .pills-field .pills-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+          font-size: 0.8rem;
+          color: rgba(255,255,255,0.7);
+        }
+        
+        .pills-inputs {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        
+        .pill-input {
+          display: flex;
+          gap: 6px;
+        }
+        
+        .pill-input input {
+          flex: 1;
+          padding: 8px 10px;
+          font-size: 0.8rem;
+        }
+        
+        .remove-btn {
+          width: 28px;
+          background: rgba(255,100,100,0.2);
+          border: 1px solid rgba(255,100,100,0.3);
+          color: #ff6464;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.8rem;
+        }
+        
+        .add-pill {
+          padding: 6px;
+          border: 1px dashed rgba(255,255,255,0.2);
+          background: transparent;
+          color: rgba(255,255,255,0.5);
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.75rem;
+        }
+        
+        .add-pill:hover {
+          border-color: #d4af37;
+          color: #d4af37;
+        }
+        
+        /* Price Field */
+        .price-field .field-row input {
+          min-width: 0;
+        }
+        
+        /* Generate Button */
+        .generate-design-btn {
+          padding: 14px;
+          background: linear-gradient(135deg, #d4af37, #b8962d);
+          border: none;
+          color: #000;
+          font-weight: 600;
+          font-size: 0.95rem;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .generate-design-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(212,175,55,0.3);
+        }
+        
+        .generate-design-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        /* Design Chat - Main Controller */
+        .design-chat {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 12px;
+          overflow: hidden;
+          background: rgba(0,0,0,0.2);
+          min-height: 300px;
+        }
+        
+        .design-chat.main-chat {
+          min-height: 400px;
+          border-color: rgba(212,175,55,0.3);
+        }
+        
+        .chat-messages-area {
+          flex: 1;
+          overflow-y: auto;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        
+        .chat-empty {
+          text-align: center;
+          padding: 30px 20px;
+          color: rgba(255,255,255,0.6);
+        }
+        
+        .chat-empty span {
+          font-size: 2.5rem;
+          display: block;
+          margin-bottom: 12px;
+        }
+        
+        .chat-empty h3 {
+          margin: 0 0 8px;
+          color: #d4af37;
+          font-weight: 500;
+        }
+        
+        .chat-empty p {
+          margin: 0 0 20px;
+          font-size: 0.9rem;
+        }
+        
+        .quick-suggestions {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        
+        .quick-suggestions button {
+          padding: 10px 14px;
+          border: 1px solid rgba(255,255,255,0.2);
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.8);
+          border-radius: 8px;
+          font-size: 0.8rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: left;
+        }
+        
+        .quick-suggestions button:hover {
+          border-color: #d4af37;
+          background: rgba(212,175,55,0.1);
+        }
+        
+        /* Design Messages */
+        .design-message {
+          display: flex;
+          gap: 10px;
+          max-width: 90%;
+        }
+        
+        .design-message.user {
+          align-self: flex-end;
+          flex-direction: row-reverse;
+        }
+        
+        .design-message .msg-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.9rem;
+          flex-shrink: 0;
+        }
+        
+        .design-message .msg-content {
+          background: rgba(255,255,255,0.08);
+          padding: 10px 14px;
+          border-radius: 12px;
+          font-size: 0.85rem;
+        }
+        
+        .design-message.user .msg-content {
+          background: rgba(212,175,55,0.2);
+        }
+        
+        .design-message .msg-content p {
+          margin: 0 0 6px;
+          white-space: pre-wrap;
+        }
+        
+        .design-message .msg-time {
+          font-size: 0.65rem;
+          opacity: 0.5;
+        }
+        
+        .html-badge {
+          display: block;
+          margin-top: 8px;
+          padding: 4px 8px;
+          background: rgba(100,200,100,0.2);
+          color: #90EE90;
+          border-radius: 4px;
+          font-size: 0.75rem;
+        }
+        
+        .changes-badge {
+          display: block;
+          margin-top: 8px;
+          padding: 4px 8px;
+          background: rgba(100,200,100,0.2);
+          border-radius: 4px;
+          font-size: 0.7rem;
+          color: #6c6;
+        }
+        
+        .design-message .msg-content.typing {
+          display: flex;
+          gap: 4px;
+          padding: 14px 18px;
+        }
+        
+        .design-message .msg-content.typing span {
+          width: 6px;
+          height: 6px;
+          background: #d4af37;
+          border-radius: 50%;
+          animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .design-message .msg-content.typing span:nth-child(2) { animation-delay: 0.2s; }
+        .design-message .msg-content.typing span:nth-child(3) { animation-delay: 0.4s; }
+        
+        /* Design Chat Input */
+        .design-chat-input {
+          display: flex;
+          gap: 8px;
+          padding: 12px;
+          border-top: 1px solid rgba(255,255,255,0.1);
+          align-items: flex-end;
+        }
+        
+        .design-chat-input textarea {
+          flex: 1;
+          padding: 10px 14px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: rgba(0,0,0,0.3);
+          color: #fff;
+          border-radius: 16px;
+          font-size: 0.85rem;
+          font-family: inherit;
+          resize: none;
+          min-height: 40px;
+          max-height: 120px;
+          line-height: 1.4;
+        }
+        
+        .design-chat-input textarea:focus {
+          outline: none;
+          border-color: #d4af37;
+        }
+        
+        .design-chat-input .mic-btn {
+          width: 38px;
+          height: 38px;
+          border: none;
+          background: rgba(255,255,255,0.1);
+          color: #fff;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.2s;
+          flex-shrink: 0;
+        }
+        
+        .design-chat-input .mic-btn:hover {
+          background: rgba(212, 175, 55, 0.3);
+        }
+        
+        .design-chat-input .mic-btn.recording {
+          background: linear-gradient(135deg, #ff4444, #cc3333);
+          animation: pulse 1s infinite;
+        }
+        
+        .design-chat-input button:last-child {
+          width: 38px;
+          height: 38px;
+          border: none;
+          background: linear-gradient(135deg, #d4af37, #b8962d);
+          color: #000;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.2s;
+          flex-shrink: 0;
+        }
+        
+        .design-chat-input button:last-child:hover:not(:disabled) {
+          transform: scale(1.1);
+        }
+        
+        .design-chat-input button:last-child:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .error-msg {
+          padding: 10px;
+          background: rgba(255,100,100,0.1);
+          border: 1px solid rgba(255,100,100,0.3);
+          border-radius: 8px;
+          color: #ff6464;
+          font-size: 0.85rem;
+        }
+        
+        /* Right Panel - Preview */
+        .copilot-right {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          background: rgba(0,0,0,0.2);
+          border-radius: 16px;
+          padding: 20px;
+        }
+        
+        .preview-toolbar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .preview-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #d4af37;
+          font-weight: 500;
+        }
+        
+        .preview-bg-toggle {
+          display: flex;
+          gap: 4px;
+          background: rgba(0,0,0,0.3);
+          padding: 4px;
+          border-radius: 8px;
+        }
+        
+        .preview-bg-toggle button {
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: transparent;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 1rem;
+          opacity: 0.5;
+          transition: all 0.2s;
+        }
+        
+        .preview-bg-toggle button:hover {
+          opacity: 0.8;
+        }
+        
+        .preview-bg-toggle button.active {
+          background: rgba(255,255,255,0.1);
+          opacity: 1;
+        }
+        
+        /* Preview Canvas */
+        .preview-canvas {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 12px;
+          min-height: 500px;
+          padding: 20px;
+          transition: background 0.3s;
+        }
+        
+        .preview-frame-container {
+          position: relative;
+        }
+        
+        .preview-canvas.bg-dark {
+          background: #000;
+        }
+        
+        .preview-canvas.bg-light {
+          background: #f0f0f0;
+        }
+        
+        .preview-canvas.bg-checker {
+          background: repeating-conic-gradient(#666 0% 25%, #444 0% 50%) 50% / 20px 20px;
+        }
+        
+        .preview-empty {
+          text-align: center;
+          color: rgba(255,255,255,0.4);
+        }
+        
+        .preview-empty span {
+          font-size: 3rem;
+          display: block;
+          margin-bottom: 12px;
+        }
+        
+        .preview-empty p {
+          margin: 0 0 6px;
+        }
+        
+        .preview-empty small {
+          font-size: 0.75rem;
+          opacity: 0.6;
+        }
+        
+        .preview-with-bg {
+          position: relative;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+        
+        .preview-with-bg img {
+          max-width: 100%;
+          max-height: 400px;
+          display: block;
+        }
+        
+        .preview-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+        }
+        
+        .preview-overlay p {
+          margin: 0;
+          font-size: 1.2rem;
+          color: #6c6;
+        }
+        
+        .preview-overlay small {
+          margin-top: 8px;
+          opacity: 0.7;
+        }
+        
+        /* Colors Panel */
+        .colors-panel {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 16px;
+          background: rgba(0,0,0,0.3);
+          border-radius: 10px;
+        }
+        
+        .colors-label {
+          font-size: 0.8rem;
+          color: rgba(255,255,255,0.7);
+        }
+        
+        .color-dots {
+          display: flex;
+          gap: 6px;
+        }
+        
+        .color-dot {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          border: 2px solid rgba(255,255,255,0.2);
+          cursor: pointer;
+          transition: transform 0.2s;
+        }
+        
+        .color-dot:hover {
+          transform: scale(1.2);
+        }
+        
+        /* Preview Actions */
+        .preview-actions {
+          display: flex;
+          gap: 10px;
+        }
+        
+        .action-btn {
+          flex: 1;
+          padding: 12px;
+          border: 1px solid rgba(212,175,55,0.5);
+          background: rgba(212,175,55,0.1);
+          color: #d4af37;
+          border-radius: 10px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        
+        .action-btn:hover {
+          background: rgba(212,175,55,0.2);
+          border-color: #d4af37;
+        }
+        
+        .action-btn.secondary {
+          background: transparent;
+          border-color: rgba(255,255,255,0.2);
+          color: rgba(255,255,255,0.7);
+        }
+        
+        .action-btn.secondary:hover {
+          border-color: rgba(255,255,255,0.4);
+          color: #fff;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1100px) {
+          .design-copilot {
+            grid-template-columns: 1fr;
+            height: auto;
+          }
+          
+          .copilot-left {
+            max-height: calc(100vh - 300px);
+          }
+          
+          .copilot-right {
+            min-height: 500px;
           }
         }
       `}</style>

@@ -54,10 +54,10 @@ El proyecto usa la **Google AI API** con una sola API key para todo:
 
 ### Archivo: `backend/.env`
 ```env
-VERTEX_API_KEY=AQ.Ab8RN6JnfCWwOtUqV7OVIw2T01LSRN4kNfrRumFyBUYzko2KGA
+VERTEX_API_KEY=tu_api_key_aqui
 ```
 
-> ⚠️ Esta key funciona con Gemini (chat) e Imagen 4 (generación de imágenes con texto)
+> ⚠️ **NUNCA subas tu API key a GitHub.** Genera tu key en [Google Cloud Console](https://console.cloud.google.com/) → API & Services → Credentials
 
 ---
 

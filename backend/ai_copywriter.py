@@ -1182,7 +1182,7 @@ def generate_social_posts(project_name: str, context: str = "") -> str:
 # GENERACIÓN DE IMÁGENES CON GOOGLE AI (Modelo Seleccionable)
 # ═══════════════════════════════════════════════════════════════════
 
-def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano-banana-pro-preview") -> dict:
+def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano-banana-pro-preview", api_endpoint: str = "auto") -> dict:
     """
     Genera una imagen usando Google AI con modelo seleccionable.
     
@@ -1190,17 +1190,37 @@ def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano
         prompt: Descripción de la imagen a generar
         aspect_ratio: Formato de imagen ("1:1", "16:9", "9:16", "4:3", "3:4")
         model: Modelo a usar (imagen-4.0-ultra-generate-001, nano-banana-pro-preview, etc.)
+        api_endpoint: 'auto', 'gemini', o 'vertex' - cual API usar
     
     Returns:
-        dict con "image_base64" (str), "mime_type" (str), "model_used" (str), o "error" (str)
+        dict con "image_base64" (str), "mime_type" (str), "model_used" (str), "api_used" (str), o "error" (str)
     """
     import base64
     import requests
     
-    api_key = os.environ.get("VERTEX_API_KEY")
+    # Seleccionar API key según preferencia del usuario
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    vertex_key = os.environ.get("VERTEX_API_KEY")
     
-    if not api_key:
-        return {"error": "No hay VERTEX_API_KEY configurada"}
+    if api_endpoint == "gemini":
+        api_key = gemini_key
+        api_name = "Gemini API"
+        if not api_key:
+            return {"error": "No hay GEMINI_API_KEY configurada"}
+    elif api_endpoint == "vertex":
+        api_key = vertex_key
+        api_name = "Vertex AI"
+        if not api_key:
+            return {"error": "No hay VERTEX_API_KEY configurada"}
+    else:  # auto
+        api_key = gemini_key or vertex_key
+        api_name = "Gemini API" if gemini_key else "Vertex AI"
+        if not api_key:
+            return {"error": "No hay GEMINI_API_KEY ni VERTEX_API_KEY configurada"}
+    
+    # Detectar tipo de key para usar endpoint correcto
+    # AQ.* = Vertex AI endpoint | AIza* = Generative Language endpoint
+    is_vertex_key = api_key.startswith("AQ.")
     
     # Detectar si es modelo Imagen 4 (usa endpoint predict)
     is_imagen4 = model.startswith("imagen-4")
@@ -1213,12 +1233,16 @@ def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano
 Style: Ultra high resolution professional architectural photography, golden hour lighting, warm tropical tones, magazine cover quality, clean composition for text overlay, aspirational luxury atmosphere."""
 
     print(f"🎨 Generando imagen con modelo: {model} ({'Imagen 4' if is_imagen4 else 'Gemini'})...")
+    print(f"🔑 Usando endpoint: {'Vertex AI' if is_vertex_key else 'Generative Language'}")
     print(f"📝 Prompt: {enhanced_prompt[:100]}...")
     
     try:
         if is_imagen4:
             # ═══ IMAGEN 4 - Usa endpoint predict ═══
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict?key={api_key}"
+            if is_vertex_key:
+                url = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:predict?key={api_key}"
+            else:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict?key={api_key}"
             
             # Mapear aspect ratio a formato Imagen 4
             aspect_map = {
@@ -1252,11 +1276,12 @@ Style: Ultra high resolution professional architectural photography, golden hour
                     # Imagen 4 devuelve base64 directamente
                     image_data = predictions[0].get("bytesBase64Encoded") or predictions[0].get("image", {}).get("bytesBase64Encoded")
                     if image_data:
-                        print(f"✅ Imagen generada exitosamente con {model}")
+                        print(f"✅ Imagen generada exitosamente con {model} via {api_name}")
                         return {
                             "image_base64": image_data,
                             "mime_type": "image/png",
-                            "model_used": model
+                            "model_used": model,
+                            "api_used": api_name
                         }
                 return {"error": "No se generó ninguna imagen en la respuesta de Imagen 4"}
             else:
@@ -1266,7 +1291,10 @@ Style: Ultra high resolution professional architectural photography, golden hour
         
         else:
             # ═══ GEMINI/NANO BANANA - Usa endpoint generateContent ═══
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            if is_vertex_key:
+                url = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:generateContent?key={api_key}"
+            else:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             
             payload = {
                 "contents": [{
@@ -1289,11 +1317,12 @@ Style: Ultra high resolution professional architectural photography, golden hour
                             image_base64 = part["inlineData"].get("data")
                             mime_type = part["inlineData"].get("mimeType", "image/png")
                             if image_base64:
-                                print(f"✅ Imagen generada exitosamente con {model}")
+                                print(f"✅ Imagen generada exitosamente con {model} via {api_name}")
                                 return {
                                     "image_base64": image_base64,
                                     "mime_type": mime_type,
-                                    "model_used": model
+                                    "model_used": model,
+                                    "api_used": api_name
                                 }
                 return {"error": "No se generó ninguna imagen en la respuesta"}
             else:
@@ -1325,10 +1354,10 @@ def edit_image_with_ai(image_base64: str, prompt: str, style_preset: str = "luxu
     import base64
     import requests
     
-    api_key = os.environ.get("VERTEX_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VERTEX_API_KEY")
     
     if not api_key:
-        return {"error": "No hay VERTEX_API_KEY configurada"}
+        return {"error": "No hay GEMINI_API_KEY ni VERTEX_API_KEY configurada"}
     
     # Style presets para real estate de lujo
     STYLE_PRESETS = {
@@ -1366,8 +1395,14 @@ OUTPUT: Ultra high resolution, photorealistic, professional real estate photogra
     print(f"📝 Style: {style_preset}")
     print(f"📝 Prompt: {prompt[:80]}...")
     
+    # Detectar tipo de key para usar endpoint correcto
+    is_vertex_key = api_key.startswith("AQ.")
+    
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key={api_key}"
+        if is_vertex_key:
+            url = f"https://aiplatform.googleapis.com/v1/publishers/google/models/nano-banana-pro-preview:generateContent?key={api_key}"
+        else:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key={api_key}"
         
         # Payload con imagen de referencia + prompt
         payload = {
@@ -2345,6 +2380,192 @@ def get_available_models() -> dict:
     }
 
 
+def generate_html_ad(
+    image_base64: str,
+    eyebrow: str = "",
+    headline: str = "",
+    subheadline: str = "",
+    pills: list = None,
+    price_label: str = "",
+    price_value: str = "",
+    cta_text: str = "",
+    project_name: str = "",
+    aspect_ratio: str = "1:1",
+    style_notes: str = ""
+) -> dict:
+    """
+    Genera código HTML/CSS para un anuncio publicitario basado en una imagen de fondo.
+    Analiza la imagen para extraer colores y genera un diseño coherente.
+    
+    Args:
+        image_base64: Imagen de fondo en base64
+        eyebrow: Texto pequeño superior (ej: "Cancún · Zona Sur")
+        headline: Título principal
+        subheadline: Subtítulo opcional
+        pills: Lista de textos para badges/pills (ej: ["0% Enganche", "Entrega Inmediata"])
+        price_label: Etiqueta del precio (ej: "Departamentos desde")
+        price_value: Valor del precio (ej: "$1,870,000 MXN")
+        cta_text: Texto del botón CTA
+        project_name: Nombre del proyecto
+        aspect_ratio: Formato ("1:1", "9:16", "16:9")
+        style_notes: Notas adicionales de estilo
+    
+    Returns:
+        dict con HTML generado y colores extraídos
+    """
+    import requests
+    
+    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        return {"error": "No hay API key configurada"}
+    
+    # Dimensiones según aspect ratio
+    dimensions = {
+        "1:1": {"width": 1080, "height": 1080},
+        "9:16": {"width": 1080, "height": 1920},
+        "16:9": {"width": 1920, "height": 1080},
+        "4:3": {"width": 1440, "height": 1080}
+    }
+    dims = dimensions.get(aspect_ratio, dimensions["1:1"])
+    
+    # Preparar pills como JSON
+    pills_json = json.dumps(pills or [])
+    
+    # Prompt para Gemini
+    html_prompt = f"""Eres un diseñador web de publicidad inmobiliaria de ultra-lujo. Analiza esta imagen para EXTRAER SU PALETA DE COLORES y genera código HTML/CSS para un anuncio publicitario.
+
+⚠️ MUY IMPORTANTE: La imagen es SOLO para analizar colores. El HTML NO debe tener imagen de fondo. El fondo debe ser un DEGRADADO OSCURO sólido.
+
+ANALIZA LA IMAGEN:
+1. Extrae los 5 colores dominantes
+2. Identifica un color de acento vibrante (para CTA, highlights)
+3. Determina colores para texto que combinen
+
+DATOS DEL ANUNCIO:
+- Proyecto: {project_name or "Desarrollo Inmobiliario"}
+- Eyebrow (arriba del headline): {eyebrow}
+- Headline principal: {headline}
+- Subheadline: {subheadline}
+- Pills/Badges: {pills_json}
+- Etiqueta precio: {price_label}
+- Precio: {price_value}
+- Botón CTA: {cta_text}
+- Notas de estilo: {style_notes}
+
+FORMATO: {dims["width"]}x{dims["height"]}px (aspect ratio {aspect_ratio})
+
+GENERA UN HTML COMPLETO:
+
+1. FONDO (MUY IMPORTANTE):
+   - SIN IMAGEN DE FONDO
+   - Usar DEGRADADO OSCURO: negro (#0a0a0a) hacia gris muy oscuro (#1a1a1a)
+   - Puede agregar un sutil resplandor radial del color de acento (muy sutil, opacidad baja)
+   - El fondo debe verse elegante y moderno, no plano
+
+2. ESTRUCTURA:
+   - DOCTYPE html con charset UTF-8
+   - Google Fonts: Cormorant Garamond + DM Sans
+   - Body con dimensiones exactas: {dims["width"]}x{dims["height"]}px
+
+3. COLORES:
+   - Derivar color de acento de la imagen analizada (para CTA, palabras destacadas, glows)
+   - Texto principal en BLANCO
+   - Eyebrow en color dorado/acento
+   - Usar variables CSS: --accent-color, --text-primary, etc.
+
+4. TIPOGRAFÍA PREMIUM:
+   - Eyebrow: DM Sans, uppercase, letter-spacing 3-4px, color acento
+   - Headline: Cormorant Garamond, peso 300, tamaño grande (60-80px)
+   - Usa <em> o <span class="accent"> para palabras en color de acento/italic
+   - Pills con borde sutil y backdrop-filter blur
+
+5. LAYOUT:
+   - Flexbox centrado
+   - Contenido en la mitad inferior
+   - Pills en fila horizontal con separador (✦ o similar)
+   - CTA como botón ancho con color de acento y glow sutil
+
+6. EFECTOS:
+   - Sombras de texto sutiles para legibilidad
+   - Glow sutil en el botón CTA
+   - No overstyling, mantener elegancia minimalista
+
+RESPONDE SOLO CON UN BLOQUE JSON:
+{{
+    "html": "<!DOCTYPE html>... (código HTML completo SIN imagen de fondo)",
+    "colors_extracted": {{
+        "dominant": "#hexcolor",
+        "secondary": "#hexcolor", 
+        "accent": "#hexcolor",
+        "text_primary": "#ffffff",
+        "text_secondary": "#hexcolor"
+    }},
+    "mood": "descripción del mood detectado"
+}}"""
+
+    print(f"🎨 Generando HTML Ad Builder para {aspect_ratio}...")
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={api_key}"
+        
+        payload = {
+            "contents": [{
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/jpeg",
+                            "data": image_base64
+                        }
+                    },
+                    {"text": html_prompt}
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.4,
+                "maxOutputTokens": 16000
+            }
+        }
+        
+        response = requests.post(url, json=payload, timeout=120)
+        
+        if response.status_code == 200:
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            
+            # Limpiar y parsear JSON
+            text = text.strip()
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+            
+            try:
+                result = json.loads(text.strip())
+                print(f"✅ HTML generado exitosamente")
+                return {"success": True, **result}
+            except json.JSONDecodeError as e:
+                # Si falla el JSON, intentar extraer solo el HTML
+                if "<!DOCTYPE" in text or "<html" in text:
+                    html_start = text.find("<!DOCTYPE") if "<!DOCTYPE" in text else text.find("<html")
+                    html_end = text.rfind("</html>") + 7
+                    html_code = text[html_start:html_end]
+                    return {
+                        "success": True,
+                        "html": html_code,
+                        "colors_extracted": {},
+                        "mood": "extracted from raw",
+                        "parse_warning": str(e)
+                    }
+                return {"error": f"Error parseando JSON: {e}", "raw_response": text[:500]}
+        else:
+            return {"error": f"Error API: {response.status_code}", "details": response.text[:300]}
+            
+    except Exception as e:
+        print(f"❌ Error generando HTML: {e}")
+        return {"error": str(e)}
+
+
 # Exportar funciones necesarias
 __all__ = [
     'chat_with_marketing_ai',
@@ -2352,6 +2573,7 @@ __all__ = [
     'detect_image_request',
     'get_available_models',
     'generate_ai_image',
+    'generate_html_ad',
     'CHAT_MODELS',
     'IMAGE_MODELS',
     'MARKETING_SYSTEM_PROMPT'

@@ -32,6 +32,7 @@ from ai_copywriter import (
     create_ad_prompt_from_reference,
     chat_with_marketing_ai,
     get_available_models,
+    generate_html_ad,
     CHAT_MODELS,
     IMAGE_MODELS
 )
@@ -355,17 +356,59 @@ class GenerateImageRequest(BaseModel):
     prompt: str
     aspect_ratio: str = "1:1"
     model: str = "nano-banana-pro-preview"
+    api_endpoint: str = "auto"  # 'auto', 'gemini', 'vertex'
 
 
 @app.post("/api/studio/generate-image-v2")
 async def generate_image_v2(request: GenerateImageRequest):
     """
-    Genera una imagen con modelo seleccionable.
+    Genera una imagen con modelo seleccionable y API endpoint configurable.
     """
     result = generate_ai_image(
         prompt=request.prompt,
         aspect_ratio=request.aspect_ratio,
-        model=request.model
+        model=request.model,
+        api_endpoint=request.api_endpoint
+    )
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HTML AD BUILDER — Generador de HTML/CSS con análisis de imagen
+# ═══════════════════════════════════════════════════════════════════
+
+class HtmlAdRequest(BaseModel):
+    image_base64: str
+    eyebrow: str = ""
+    headline: str = ""
+    subheadline: str = ""
+    pills: Optional[List[str]] = []
+    price_label: str = ""
+    price_value: str = ""
+    cta_text: str = ""
+    project_name: str = ""
+    aspect_ratio: str = "1:1"  # "1:1", "9:16", "16:9", "4:3"
+    style_notes: str = ""
+
+
+@app.post("/api/studio/generate-html-ad")
+async def generate_html_ad_endpoint(request: HtmlAdRequest):
+    """
+    Genera código HTML/CSS para un anuncio publicitario.
+    Analiza la imagen de fondo para extraer colores y crear un diseño coherente.
+    """
+    result = generate_html_ad(
+        image_base64=request.image_base64,
+        eyebrow=request.eyebrow,
+        headline=request.headline,
+        subheadline=request.subheadline,
+        pills=request.pills,
+        price_label=request.price_label,
+        price_value=request.price_value,
+        cta_text=request.cta_text,
+        project_name=request.project_name,
+        aspect_ratio=request.aspect_ratio,
+        style_notes=request.style_notes
     )
     return result
 
