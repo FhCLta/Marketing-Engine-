@@ -413,6 +413,100 @@ async def generate_html_ad_endpoint(request: HtmlAdRequest):
     return result
 
 
+# ═══════════════════════════════════════════════════════════════════
+# CLAUDE API — Para edición incremental de HTML en Design Copilot
+# ═══════════════════════════════════════════════════════════════════
+
+import anthropic
+
+class ClaudeChatRequest(BaseModel):
+    message: str
+    model: str = "claude-sonnet-4-20250514"
+    system_prompt: Optional[str] = None
+    current_html: Optional[str] = None
+    history: Optional[List[dict]] = []
+
+
+@app.post("/api/chat-claude")
+async def chat_claude_endpoint(request: ClaudeChatRequest):
+    """
+    Chat con Claude para edición incremental de HTML/CSS.
+    Optimizado para el Design Copilot.
+    """
+    try:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return {"error": "ANTHROPIC_API_KEY no configurada", "success": False}
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        # System prompt por defecto para Design Copilot
+        default_system = """Eres un experto diseñador web especializado en publicidad de bienes raíces de lujo.
+
+REGLA CRÍTICA PARA EDICIONES:
+- Si el usuario te proporciona HTML existente, DEBES hacer SOLO los cambios específicos que pide.
+- NO regeneres todo el HTML desde cero.
+- Mantén INTACTO todo lo que no se mencione en la solicitud.
+- Los cambios deben ser QUIRÚRGICOS y PRECISOS.
+
+Formato de respuesta:
+- Devuelve SOLO el código HTML/CSS completo actualizado.
+- NO incluyas explicaciones, solo el código.
+- El código debe estar listo para renderizar."""
+        
+        system_prompt = request.system_prompt or default_system
+        
+        # Si hay HTML actual, agregarlo al contexto
+        user_message = request.message
+        if request.current_html:
+            user_message = f"""HTML ACTUAL A EDITAR:
+```html
+{request.current_html}
+```
+
+INSTRUCCIÓN DEL USUARIO:
+{request.message}
+
+IMPORTANTE: Haz SOLO el cambio solicitado. No regeneres todo. Devuelve el HTML completo con la modificación aplicada."""
+        
+        # Convertir historial al formato de Claude
+        messages = []
+        for msg in request.history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role in ["user", "assistant"]:
+                messages.append({"role": role, "content": content})
+        
+        # Agregar mensaje actual
+        messages.append({"role": "user", "content": user_message})
+        
+        # Llamar a Claude
+        response = client.messages.create(
+            model=request.model,
+            max_tokens=8192,
+            system=system_prompt,
+            messages=messages
+        )
+        
+        # Extraer respuesta
+        assistant_response = response.content[0].text
+        
+        return {
+            "success": True,
+            "response": assistant_response,
+            "model": request.model,
+            "usage": {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens
+            }
+        }
+        
+    except anthropic.APIError as e:
+        return {"error": f"Error de API Claude: {str(e)}", "success": False}
+    except Exception as e:
+        return {"error": f"Error: {str(e)}", "success": False}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

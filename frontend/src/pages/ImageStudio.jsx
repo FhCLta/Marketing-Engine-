@@ -117,6 +117,7 @@ export default function ImageStudio({ onBack }) {
   const [designChatImage, setDesignChatImage] = useState(null) // Image for AI review
   const [designChatImageBase64, setDesignChatImageBase64] = useState(null)
   const [isDesignRecording, setIsDesignRecording] = useState(false) // Voice recording for Design Copilot
+  const [designCopilotModel, setDesignCopilotModel] = useState('claude-sonnet-4-20250514') // Model for Design Copilot - Claude default for better editing
   
   const fileInputRef = useRef(null)
   const pinterestInputRef = useRef(null)
@@ -1216,85 +1217,82 @@ export default function ImageStudio({ onBack }) {
         ? formatContextForPrompt(aiLearningContext)
         : ''
 
-      const systemPrompt = `Eres un Design Copilot experto en crear anuncios HTML para bienes raíces de lujo en Riviera Maya.
+      // Check if we're in edit mode (existing HTML)
+      const isEditMode = !!generatedHtml && generatedHtml.length > 100
+      
+      // For edit mode, prepend instruction to user message
+      const finalMessage = isEditMode 
+        ? `[MODO EDICIÓN - SOLO MODIFICA LO QUE PIDO]\n\nMi solicitud: ${messageToSend}\n\nIMPORTANTE: NO regeneres todo. Solo aplica este cambio al HTML existente.`
+        : messageToSend
+      
+      console.log('🎨 Design Copilot:', isEditMode ? 'MODO EDICIÓN' : 'MODO CREACIÓN')
+      console.log('📝 HTML actual:', generatedHtml ? `${generatedHtml.length} caracteres` : 'ninguno')
 
-FORMATO ACTUAL: ${dims.width}x${dims.height}px (${htmlAdFormat})
+      const systemPrompt = `Eres un Design Copilot experto en crear anuncios HTML para bienes raíces de lujo.
 
-⚠️ REGLA CRÍTICA - FONDO:
-- NUNCA uses background-image
-- NUNCA uses url() para imágenes
-- NUNCA referencias a archivos de imagen
-- SOLO usa background con gradientes CSS puros
+FORMATO: ${dims.width}x${dims.height}px (${htmlAdFormat})
 
-FONDO CORRECTO (usar exactamente esto):
+⚠️ REGLA FONDO: SOLO gradientes CSS, NUNCA url()
 background: radial-gradient(ellipse at center top, #1a1a2e 0%, #0a0a0a 50%, #000000 100%);
 
-TU TRABAJO: Generar HTML COMPLETO y listo para usar.
+${isEditMode ? `
+🔴🔴🔴 MODO EDICIÓN ACTIVO 🔴🔴🔴
 
-CUANDO EL USUARIO DESCRIBE UN PROYECTO:
-- Genera HTML completo con la información
-- Fondo: SOLO gradiente CSS (NO imágenes)
-- Colores de acento: dorado (#d4af37) o el que pida
-- Tipografías: Cormorant Garamond (headlines), DM Sans (textos)
-- Incluye: eyebrow, headline, subheadline, badges/pills, precio, botón CTA
+TIENES UN HTML EXISTENTE. TU ÚNICA TAREA ES:
+1. Leer el HTML actual (abajo)
+2. Aplicar SOLO el cambio que pide el usuario
+3. Devolver el HTML COMPLETO con ese único cambio
 
-CUANDO EL USUARIO PIDE MODIFICACIONES:
-- Modifica el HTML actual según lo que pide
-- "quítale X" → elimina ese elemento
-- "cambia X por Y" → modifica el contenido
+❌ NO hagas un diseño nuevo
+❌ NO cambies estructura, colores o estilos que no te pidieron
+❌ NO "mejores" nada que no te pidieron
+✅ SOLO modifica exactamente lo solicitado
 
-CUANDO EL USUARIO SUBE UNA CAPTURA/IMAGEN PARA REVISIÓN:
-- Analiza la imagen del diseño actual
-- Identifica áreas de mejora: tipografía, espaciado, jerarquía visual, colores, composición
-- Sugiere cambios específicos y genera el HTML mejorado
-- Sé específico: "el headline está muy pequeño", "el botón debería tener más contraste", etc.
-${aiContextPrompt}
-HTML ACTUAL (si existe):
-${generatedHtml ? '```html\n' + generatedHtml + '\n```' : '(Ninguno aún - genera uno nuevo)'}
-
-ESTRUCTURA HTML REQUERIDA:
+HTML ACTUAL (MODIFICA ESTE):
 \`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      width: ${dims.width}px;
-      height: ${dims.height}px;
-      background: radial-gradient(ellipse at center top, #1a1a2e 0%, #0a0a0a 50%, #000000 100%);
-      /* NUNCA usar background-image con url() */
-      font-family: 'DM Sans', sans-serif;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding: 60px;
-    }
-    /* ... resto de estilos ... */
-  </style>
-</head>
-<body>
-  <!-- contenido -->
-</body>
-</html>
+${generatedHtml}
 \`\`\`
 
-RESPUESTA:
-- Breve confirmación (1 línea)
-- HTML completo en bloque \`\`\`html ... \`\`\``
+RESPONDE CON:
+1. "Cambié [X] a [Y]" (una línea)
+2. El HTML completo modificado en \`\`\`html ... \`\`\`
+` : `
+🆕 MODO CREACIÓN - Genera HTML nuevo con:
+- Gradiente CSS de fondo (NO imágenes)
+- Colores dorado (#d4af37) como acento
+- Fuentes: Cormorant Garamond, DM Sans
+- Estructura: logo, headline, precio, CTA
+`}
+${aiContextPrompt}`
 
-      const resp = await fetch('http://localhost:8000/api/chat', {
+      // Use Claude API for Claude models, Gemini API otherwise
+      const isClaudeModel = designCopilotModel.startsWith('claude')
+      const apiEndpoint = isClaudeModel 
+        ? 'http://localhost:8000/api/chat-claude'
+        : 'http://localhost:8000/api/chat'
+      
+      const requestBody = isClaudeModel 
+        ? {
+            message: messageToSend,
+            model: designCopilotModel,
+            system_prompt: systemPrompt,
+            current_html: isEditMode ? generatedHtml : null,
+            history: []
+          }
+        : {
+            message: finalMessage,
+            model: designCopilotModel,
+            history: [],
+            system_prompt: systemPrompt,
+            image_base64: imageForReview || htmlBuilderImageBase64
+          }
+      
+      console.log('🤖 Usando:', isClaudeModel ? 'Claude API' : 'Gemini API')
+      
+      const resp = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: messageToSend,
-          model: 'gemini-2.5-pro',
-          history: designChatMessages.slice(-4).map(m => ({ role: m.role, content: m.content })),
-          system_prompt: systemPrompt,
-          image_base64: imageForReview || htmlBuilderImageBase64 // Prioritize review screenshot
-        })
+        body: JSON.stringify(requestBody)
       })
       
       const data = await resp.json()
@@ -1832,6 +1830,25 @@ RESPUESTA:
                 </div>
               </div>
               
+              {/* Model Selector */}
+              <select 
+                className="copilot-model-select"
+                value={designCopilotModel}
+                onChange={(e) => setDesignCopilotModel(e.target.value)}
+              >
+                <optgroup label="🟣 Claude (mejor para edición)">
+                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                  <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                </optgroup>
+                <optgroup label="🔵 Gemini">
+                  <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                  <option value="gemini-3-pro-preview">Gemini 3 Pro</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                </optgroup>
+              </select>
+              
               {/* Compact Image Upload */}
               <div 
                 className={`copilot-image-upload ${htmlBuilderImage ? 'has-image' : ''}`}
@@ -1870,6 +1887,30 @@ RESPUESTA:
                   {fmt}
                 </button>
               ))}
+            </div>
+            
+            {/* Mode Indicator */}
+            <div className={`copilot-mode-indicator ${generatedHtml ? 'edit' : 'create'}`}>
+              {generatedHtml ? (
+                <>
+                  <span>✏️</span>
+                  <span>Modo Edición</span>
+                  <span className="mode-hint">Solo modifico lo que pidas</span>
+                  <button 
+                    className="reset-btn"
+                    onClick={() => { setGeneratedHtml(null); setDesignChatMessages([]); }}
+                    title="Empezar desde cero"
+                  >
+                    🔄 Nuevo
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>🆕</span>
+                  <span>Modo Creación</span>
+                  <span className="mode-hint">Describe tu proyecto</span>
+                </>
+              )}
             </div>
             
             {/* Design Chat - MAIN CONTROLLER */}
@@ -3788,6 +3829,28 @@ RESPUESTA:
           opacity: 0.6;
         }
         
+        .copilot-model-select {
+          padding: 8px 12px;
+          background: rgba(212, 175, 55, 0.15);
+          border: 1px solid rgba(212, 175, 55, 0.4);
+          border-radius: 8px;
+          color: #d4af37;
+          font-size: 0.85rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .copilot-model-select:hover {
+          background: rgba(212, 175, 55, 0.25);
+          border-color: rgba(212, 175, 55, 0.6);
+        }
+        
+        .copilot-model-select option {
+          background: #1a1a2e;
+          color: white;
+        }
+        
         .copilot-image-upload {
           width: 80px;
           height: 80px;
@@ -3866,6 +3929,50 @@ RESPUESTA:
           background: rgba(212,175,55,0.2);
           border-color: #d4af37;
           color: #d4af37;
+        }
+        
+        /* Mode Indicator */
+        .copilot-mode-indicator {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: 10px;
+          font-size: 0.85rem;
+          margin-top: 8px;
+        }
+        
+        .copilot-mode-indicator.create {
+          background: rgba(59, 130, 246, 0.15);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          color: #60a5fa;
+        }
+        
+        .copilot-mode-indicator.edit {
+          background: rgba(34, 197, 94, 0.15);
+          border: 1px solid rgba(34, 197, 94, 0.3);
+          color: #4ade80;
+        }
+        
+        .copilot-mode-indicator .mode-hint {
+          font-size: 0.75rem;
+          opacity: 0.7;
+          flex: 1;
+        }
+        
+        .copilot-mode-indicator .reset-btn {
+          padding: 4px 10px;
+          background: rgba(239, 68, 68, 0.2);
+          border: 1px solid rgba(239, 68, 68, 0.4);
+          border-radius: 6px;
+          color: #f87171;
+          font-size: 0.75rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .copilot-mode-indicator .reset-btn:hover {
+          background: rgba(239, 68, 68, 0.3);
         }
         
         /* Quick Form */
