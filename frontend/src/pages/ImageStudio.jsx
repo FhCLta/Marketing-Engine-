@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import API_BASE_URL from '../config/api'
 
 // Auth & Database Services
 import { signInWithGoogle, logOut, onAuthChange } from '../services/authService'
@@ -168,7 +169,7 @@ export default function ImageStudio({ onBack }) {
   
   const loadAvailableModels = async () => {
     try {
-      const resp = await fetch('http://localhost:8000/api/models')
+      const resp = await fetch(`${API_BASE_URL}/api/models`)
       const data = await resp.json()
       setChatModels(data.chat_models || [])
       setImageModels(data.image_models || [])
@@ -179,7 +180,7 @@ export default function ImageStudio({ onBack }) {
   
   const loadPromptLibrary = async () => {
     try {
-      const resp = await fetch('http://localhost:8000/api/studio/prompts')
+      const resp = await fetch(`${API_BASE_URL}/api/studio/prompts`)
       const data = await resp.json()
       setPromptLibrary(data.prompts || [])
       setCategories(data.categories || [])
@@ -190,7 +191,7 @@ export default function ImageStudio({ onBack }) {
   
   const loadStylePresets = async () => {
     try {
-      const resp = await fetch('http://localhost:8000/api/studio/style-presets')
+      const resp = await fetch(`${API_BASE_URL}/api/studio/style-presets`)
       const data = await resp.json()
       setStylePresets(data.presets || [])
     } catch (err) {
@@ -479,7 +480,7 @@ export default function ImageStudio({ onBack }) {
     
     try {
       // Use v2 endpoint with model selection and API endpoint
-      const resp = await fetch('http://localhost:8000/api/studio/generate-image-v2', {
+      const resp = await fetch(`${API_BASE_URL}/api/studio/generate-image-v2`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -551,7 +552,7 @@ export default function ImageStudio({ onBack }) {
     setError(null)
     
     try {
-      const resp = await fetch('http://localhost:8000/api/studio/edit-image', {
+      const resp = await fetch(`${API_BASE_URL}/api/studio/edit-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -669,7 +670,7 @@ export default function ImageStudio({ onBack }) {
     setError(null)
     
     try {
-      const resp = await fetch('http://localhost:8000/api/studio/extract-prompt', {
+      const resp = await fetch(`${API_BASE_URL}/api/studio/extract-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: pinterestImageBase64 })
@@ -701,7 +702,7 @@ export default function ImageStudio({ onBack }) {
     setError(null)
     
     try {
-      const resp = await fetch('http://localhost:8000/api/studio/extract-colors', {
+      const resp = await fetch(`${API_BASE_URL}/api/studio/extract-colors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: backgroundImageBase64 })
@@ -734,7 +735,7 @@ export default function ImageStudio({ onBack }) {
     try {
       const colorPalette = extractedColors?.colors?.map(c => c.hex) || null
       
-      const resp = await fetch('http://localhost:8000/api/studio/adapt-prompt', {
+      const resp = await fetch(`${API_BASE_URL}/api/studio/adapt-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -822,7 +823,7 @@ export default function ImageStudio({ onBack }) {
     }
     
     try {
-      const resp = await fetch('http://localhost:8000/api/chat', {
+      const resp = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1268,8 +1269,8 @@ ${aiContextPrompt}`
       // Use Claude API for Claude models, Gemini API otherwise
       const isClaudeModel = designCopilotModel.startsWith('claude')
       const apiEndpoint = isClaudeModel 
-        ? 'http://localhost:8000/api/chat-claude'
-        : 'http://localhost:8000/api/chat'
+        ? `${API_BASE_URL}/api/chat-claude`
+        : `${API_BASE_URL}/api/chat`
       
       const requestBody = isClaudeModel 
         ? {

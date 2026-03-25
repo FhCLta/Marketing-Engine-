@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import API_BASE_URL from './config/api'
 import './index.css'
 
 // Firebase Imports
@@ -225,7 +226,7 @@ function App() {
       formData.append("headline_font_size", headlineFontSize.toString())
       formData.append("body_font_size", bodyFontSize.toString())
 
-      const response = await fetch("http://localhost:8000/api/render-ad", {
+      const response = await fetch(`${API_BASE_URL}/api/render-ad`, {
         method: "POST",
         body: formData
       })
@@ -250,7 +251,7 @@ function App() {
     if(!imagePrompt) return alert("Escribe un prompt para la IA")
     setLoading(true)
     try {
-      const resp = await fetch("http://localhost:8000/api/generate-ai-image", {
+      const resp = await fetch(`${API_BASE_URL}/api/generate-ai-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -288,7 +289,7 @@ function App() {
     if(!projectContext) return alert("Ingresa el nombre del proyecto o sube una imagen primero.")
     setLoading(true)
     try {
-      const resp = await fetch("http://localhost:8000/api/generate-copy", {
+      const resp = await fetch(`${API_BASE_URL}/api/generate-copy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -347,7 +348,7 @@ function App() {
     if(!projectContext) return alert("Ingresa el nombre del proyecto o sube una imagen primero.")
     setLoading(true)
     try {
-      const resp = await fetch("http://localhost:8000/api/social-copy", {
+      const resp = await fetch(`${API_BASE_URL}/api/social-copy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -418,7 +419,7 @@ function App() {
       formData.append("headline_font_size", headlineFontSize.toString())
       formData.append("body_font_size", bodyFontSize.toString())
 
-      const response = await fetch("http://localhost:8000/api/render-ad", {
+      const response = await fetch(`${API_BASE_URL}/api/render-ad`, {
         method: "POST",
         body: formData
       })
@@ -467,7 +468,7 @@ function App() {
       formData.append("output_quality", outputQuality)
       formData.append("color_enhance", "true")
 
-      const response = await fetch("http://localhost:8000/api/enhance-image", {
+      const response = await fetch(`${API_BASE_URL}/api/enhance-image`, {
         method: "POST",
         body: formData
       })
