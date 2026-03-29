@@ -9,6 +9,46 @@ import { INITIAL_PROJECTS } from './data/initialProjects'
 // Page Components
 import ImageStudio from './pages/ImageStudio'
 
+// Utility: Compress image before upload to avoid 413 errors
+const compressImageForUpload = async (file, maxSizeMB = 25, maxDimension = 4000) => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      
+      // Scale down if larger than maxDimension
+      if (width > maxDimension || height > maxDimension) {
+        const scale = maxDimension / Math.max(width, height)
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+      }
+      
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, width, height)
+      
+      // Start with high quality, reduce if needed
+      let quality = 0.92
+      const tryCompress = () => {
+        canvas.toBlob((blob) => {
+          const sizeMB = blob.size / (1024 * 1024)
+          if (sizeMB > maxSizeMB && quality > 0.5) {
+            quality -= 0.1
+            tryCompress()
+          } else {
+            console.log(`Image compressed: ${sizeMB.toFixed(2)}MB, quality: ${quality}, ${width}x${height}`)
+            resolve(blob)
+          }
+        }, 'image/jpeg', quality)
+      }
+      tryCompress()
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 function App() {
   // Page Navigation
   const [currentPage, setCurrentPage] = useState('engine') // 'engine' or 'studio'

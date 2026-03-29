@@ -4,12 +4,16 @@ FROM python:3.12-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for Pillow
+# Install system dependencies for Pillow AND fonts for text rendering
 RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     zlib1g-dev \
     libpng-dev \
-    && rm -rf /var/lib/apt/lists/*
+    fonts-dejavu-core \
+    fonts-liberation \
+    fontconfig \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -f -v
 
 # Copy requirements first for better caching
 COPY requirements.txt .

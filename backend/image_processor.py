@@ -1,4 +1,5 @@
 import os
+import platform
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 
@@ -17,9 +18,40 @@ ASPECT_RATIOS = {
     '4:5':   {'8k': (3456, 4320),  '4k': (1728, 2160)},
 }
 
-# Fonts
-FONT_SERIF = r'C:\Windows\Fonts\georgiab.ttf'
-FONT_SANS = r'C:\Windows\Fonts\arial.ttf'
+# Fonts - Cross-platform paths
+def _get_font_paths():
+    """Get font paths based on operating system."""
+    if platform.system() == 'Windows':
+        return {
+            'serif': r'C:\Windows\Fonts\georgiab.ttf',
+            'sans': r'C:\Windows\Fonts\arial.ttf'
+        }
+    else:
+        # Linux (Cloud Run) - Use Liberation/DejaVu fonts
+        linux_fonts = {
+            'serif': [
+                '/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'
+            ],
+            'sans': [
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+            ]
+        }
+        # Find first available font
+        result = {'serif': None, 'sans': None}
+        for font_type in ['serif', 'sans']:
+            for path in linux_fonts[font_type]:
+                if os.path.exists(path):
+                    result[font_type] = path
+                    break
+        return result
+
+FONT_PATHS = _get_font_paths()
+FONT_SERIF = FONT_PATHS.get('serif') or ''
+FONT_SANS = FONT_PATHS.get('sans') or ''
 
 # ═══════════════════════════════════════════════════════════════════
 # BRISA MAYA CAPITAL — BRAND THEMES & STYLES (Quiet Luxury)
@@ -309,15 +341,33 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
     headline_pct = (params.headline_font_size / 100.0) * 1.1
     body_pct = (params.body_font_size / 100.0) * 1.1
     
+    def load_font(font_path, size):
+        """Load font with fallback to default."""
+        if font_path and os.path.exists(font_path):
+            return ImageFont.truetype(font_path, size)
+        # Try common fallback paths
+        fallbacks = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        ]
+        for fb in fallbacks:
+            if os.path.exists(fb):
+                return ImageFont.truetype(fb, size)
+        print(f"WARNING: Font not found: {font_path}, using default")
+        return ImageFont.load_default()
+    
     try:
-        f_logo_title = ImageFont.truetype(FONT_SERIF, int(height * 0.040 * font_scale))
-        f_logo_sub   = ImageFont.truetype(FONT_SANS,  int(height * 0.015 * font_scale))
-        f_location   = ImageFont.truetype(FONT_SANS,  int(height * 0.020 * font_scale))  # Ubicación (sutil)
-        f_super      = ImageFont.truetype(FONT_SANS,  int(height * super_pct * font_scale))  # Badge (dinámico)
-        f_project    = ImageFont.truetype(font_main,  int(height * project_pct * font_scale))  # PROJECT NAME (HERO)
-        f_title      = ImageFont.truetype(font_main,  int(height * headline_pct * font_scale))  # Tagline
-        f_body       = ImageFont.truetype(FONT_SANS,  int(height * body_pct * font_scale))  # Body text
-    except:
+        f_logo_title = load_font(FONT_SERIF, int(height * 0.040 * font_scale))
+        f_logo_sub   = load_font(FONT_SANS,  int(height * 0.015 * font_scale))
+        f_location   = load_font(FONT_SANS,  int(height * 0.020 * font_scale))  # Ubicación (sutil)
+        f_super      = load_font(FONT_SANS,  int(height * super_pct * font_scale))  # Badge (dinámico)
+        f_project    = load_font(font_main,  int(height * project_pct * font_scale))  # PROJECT NAME (HERO)
+        f_title      = load_font(font_main,  int(height * headline_pct * font_scale))  # Tagline
+        f_body       = load_font(FONT_SANS,  int(height * body_pct * font_scale))  # Body text
+        print(f"Fonts loaded successfully - SERIF: {FONT_SERIF}, SANS: {FONT_SANS}")
+    except Exception as e:
+        print(f"ERROR loading fonts: {e}")
         f_logo_title = f_logo_sub = f_location = f_super = f_project = f_title = f_body = ImageFont.load_default()
 
     margin_x = width * 0.08
