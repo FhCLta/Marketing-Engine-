@@ -26,6 +26,20 @@ CHAT_MODELS = [
     {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro Preview", "desc": "Máxima calidad"},
     {"id": "gemini-3.1-flash-lite-preview", "name": "Gemini 3.1 Flash Lite", "desc": "Experimental"},
     {"id": "gemini-3.1-pro-preview", "name": "Gemini 3.1 Pro Preview", "desc": "Última versión"},
+    # ─── OpenRouter (free) ────────────────────────────────────────
+    {"id": "openrouter/deepseek/deepseek-chat-v3.1:free", "name": "DeepSeek Chat v3.1", "desc": "🆓 OpenRouter · razonamiento"},
+    {"id": "openrouter/deepseek/deepseek-r1:free", "name": "DeepSeek R1", "desc": "🆓 OpenRouter · reasoning"},
+    {"id": "openrouter/meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B", "desc": "🆓 OpenRouter · Meta"},
+    {"id": "openrouter/qwen/qwen-2.5-72b-instruct:free", "name": "Qwen 2.5 72B", "desc": "🆓 OpenRouter · Alibaba"},
+    {"id": "openrouter/google/gemini-2.0-flash-exp:free", "name": "Gemini 2.0 Flash (OR)", "desc": "🆓 OpenRouter · Google"},
+    {"id": "openrouter/mistralai/mistral-small-3.2-24b-instruct:free", "name": "Mistral Small 3.2", "desc": "🆓 OpenRouter · Mistral"},
+    {"id": "openrouter/meta-llama/llama-3.2-11b-vision-instruct:free", "name": "Llama 3.2 Vision", "desc": "🆓 OpenRouter · visión"},
+    {"id": "openrouter/nvidia/nemotron-nano-9b-v2:free", "name": "Nemotron Nano 9B", "desc": "🆓 OpenRouter · NVIDIA"},
+    {"id": "openrouter/microsoft/mai-ds-r1:free", "name": "MAI DS R1", "desc": "🆓 OpenRouter · Microsoft"},
+    # OpenRouter premium (de pago, según créditos)
+    {"id": "openrouter/anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet (OR)", "desc": "💳 OpenRouter · pago"},
+    {"id": "openrouter/openai/gpt-4o-mini", "name": "GPT-4o mini (OR)", "desc": "💳 OpenRouter · pago"},
+    {"id": "openrouter/openai/gpt-4o", "name": "GPT-4o (OR)", "desc": "💳 OpenRouter · pago"},
 ]
 
 IMAGE_MODELS = [
@@ -37,6 +51,9 @@ IMAGE_MODELS = [
     {"id": "nano-banana-pro-preview", "name": "Nano Banana Pro", "desc": "⚠️ Sin texto en imagen", "type": "gemini"},
     {"id": "gemini-3.1-flash-image-preview", "name": "Nano Banana 2", "desc": "⚠️ Sin texto en imagen", "type": "gemini"},
     {"id": "gemini-2.5-flash-image", "name": "Nano Banana", "desc": "⚠️ Sin texto en imagen", "type": "gemini"},
+    # OpenRouter image generation
+    {"id": "openrouter/google/gemini-2.5-flash-image-preview:free", "name": "Gemini Image (OR free)", "desc": "🆓 OpenRouter", "type": "openrouter"},
+    {"id": "openrouter/google/gemini-2.5-flash-image-preview", "name": "Gemini Image (OR)", "desc": "💳 OpenRouter", "type": "openrouter"},
 ]
 
 class AICopyResponse(BaseModel):
@@ -1182,7 +1199,7 @@ def generate_social_posts(project_name: str, context: str = "") -> str:
 # GENERACIÓN DE IMÁGENES CON GOOGLE AI (Modelo Seleccionable)
 # ═══════════════════════════════════════════════════════════════════
 
-def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano-banana-pro-preview", api_endpoint: str = "auto") -> dict:
+def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano-banana-pro-preview", api_endpoint: str = "auto", enhance_style: str = "real_estate", chat_history: list = None, enrich: bool = True, enrich_model: str = "gemini-2.5-flash") -> dict:
     """
     Genera una imagen usando Google AI con modelo seleccionable.
     
@@ -1198,6 +1215,36 @@ def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano
     import base64
     import requests
     
+    # ─── Enriquecer prompt con contexto conversacional (estilo ChatGPT/Sora) ───
+    if enrich and (chat_history or len(prompt or "") < 250):
+        try:
+            prompt = enrich_image_prompt_from_context(
+                user_prompt=prompt,
+                chat_history=chat_history,
+                enhance_style=enhance_style,
+                aspect_ratio=aspect_ratio,
+                model=enrich_model,
+                api_endpoint=api_endpoint,
+            )
+        except Exception as _e:
+            print(f"⚠️ enrich falló silenciosamente: {_e}")
+
+    # Routing a OpenRouter
+    if model.startswith("openrouter/") or api_endpoint == "openrouter":
+        # Aplicar enhance_style al prompt antes de enviar
+        if enhance_style == "viral":
+            styled = f"High-impact viral social media visual, cinematic composition, bold contrast.\n\n{prompt}\n\nStyle: Ultra sharp, vibrant, scroll-stopping, professional quality."
+        elif enhance_style == "crypto":
+            styled = f"Futuristic crypto/AI/tech visual, cinematic dark mode aesthetic, neon accents.\n\n{prompt}\n\nStyle: Cyberpunk-inspired, dramatic lighting, blue/purple/cyan palette, ultra-detailed."
+        elif enhance_style == "real_estate":
+            styled = f"Photorealistic luxury real estate photography in Riviera Maya, Mexico.\n\n{prompt}\n\nStyle: Ultra high resolution professional architectural photography, golden hour lighting, magazine cover quality."
+        else:
+            styled = prompt
+        return generate_image_openrouter(
+            prompt=styled,
+            model=model if model.startswith("openrouter/") else f"openrouter/{model}",
+        )
+
     # Seleccionar API key según preferencia del usuario
     gemini_key = os.environ.get("GEMINI_API_KEY")
     vertex_key = os.environ.get("VERTEX_API_KEY")
@@ -1225,8 +1272,27 @@ def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano
     # Detectar si es modelo Imagen 4 (usa endpoint predict)
     is_imagen4 = model.startswith("imagen-4")
     
-    # Prompt engineering para real estate de lujo
-    enhanced_prompt = f"""Photorealistic luxury real estate photography in Riviera Maya, Mexico.
+    # ─── Enriquecer prompt con contexto conversacional (estilo ChatGPT/Sora) ───
+    # (ya se hizo arriba antes del routing OpenRouter)
+
+    # Prompt engineering por estilo
+    if enhance_style == "none" or not enhance_style:
+        # Prompt puro, sin wrapper
+        enhanced_prompt = prompt
+    elif enhance_style == "viral":
+        enhanced_prompt = f"""High-impact viral social media visual, cinematic composition, bold contrast, eye-catching.
+
+{prompt}
+
+Style: Ultra sharp, vibrant, scroll-stopping, optimized for Instagram/TikTok/YouTube thumbnails, professional quality."""
+    elif enhance_style == "crypto":
+        enhanced_prompt = f"""Futuristic crypto/AI/tech visual, cinematic dark mode aesthetic, neon accents, high-tech atmosphere.
+
+{prompt}
+
+Style: Cyberpunk-inspired, glowing data, dramatic lighting, blue/purple/cyan palette, ultra-detailed, magazine-quality digital art."""
+    else:  # "real_estate" (default - mantiene comportamiento original)
+        enhanced_prompt = f"""Photorealistic luxury real estate photography in Riviera Maya, Mexico.
 
 {prompt}
 
@@ -1296,12 +1362,19 @@ Style: Ultra high resolution professional architectural photography, golden hour
             else:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             
+            # Aspect ratios soportados por Nano Banana / Gemini image-preview
+            valid_ratios = {"1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"}
+            ar = aspect_ratio if aspect_ratio in valid_ratios else "1:1"
+            
             payload = {
                 "contents": [{
                     "parts": [{"text": enhanced_prompt}]
                 }],
                 "generationConfig": {
-                    "responseModalities": ["IMAGE", "TEXT"]
+                    "responseModalities": ["IMAGE", "TEXT"],
+                    "imageConfig": {
+                        "aspectRatio": ar
+                    }
                 }
             }
             
@@ -2161,15 +2234,249 @@ def detect_image_request(message: str) -> dict:
     return {"should_generate": False, "prompt": ""}
 
 
+def _strip_openrouter_prefix(model: str) -> str:
+    """Quita el prefijo 'openrouter/' del id de modelo."""
+    return model[len("openrouter/"):] if model.startswith("openrouter/") else model
+
+
+def enrich_image_prompt_from_context(
+    user_prompt: str,
+    chat_history: list = None,
+    enhance_style: str = "none",
+    aspect_ratio: str = "1:1",
+    model: str = "gemini-2.5-flash",
+    api_endpoint: str = "auto",
+) -> str:
+    """
+    Usa un LLM rápido (Gemini Flash) para enriquecer el brief de imagen
+    con el contexto de la conversación, estilo similar a ChatGPT/Sora.
+    """
+    import requests
+
+    if not user_prompt:
+        return user_prompt
+
+    # Construir contexto: últimos 6 mensajes
+    history = chat_history or []
+    recent = history[-6:]
+    ctx_lines = []
+    for h in recent:
+        role = (h.get("role") or "user").upper()
+        content = (h.get("content") or "").strip()
+        if content:
+            ctx_lines.append(f"[{role}]: {content[:600]}")
+    context_block = "\n".join(ctx_lines) if ctx_lines else "(sin contexto previo)"
+
+    style_hint = {
+        "viral":       "viral redes sociales (cinematográfico, contraste alto, hook visual)",
+        "crypto":      "cripto/IA/tech (cyberpunk, neón, dark mode, dramático)",
+        "real_estate": "real estate de lujo Riviera Maya (golden hour, arquitectura, aspiracional)",
+    }.get(enhance_style, "libre, según contexto")
+
+    enrichment_prompt = f"""Eres un director de arte experto en prompts para modelos de imagen (Imagen 4 / Nano Banana / DALL-E).
+
+Tu tarea: convertir un BRIEF CORTO del usuario en un PROMPT ENRIQUECIDO listo para generar imagen, usando el contexto de la conversación.
+
+CONTEXTO DE LA CONVERSACIÓN (últimos mensajes):
+{context_block}
+
+BRIEF DEL USUARIO:
+{user_prompt}
+
+ESTILO DESEADO: {style_hint}
+ASPECT RATIO: {aspect_ratio}
+
+REGLAS:
+1. Detecta el TEMA real (ej: traders humanos vs IA, bitcoin, lujo, etc.) y úsalo.
+2. Añade composición, iluminación, paleta, ángulo de cámara, mood, estilo cinematográfico.
+3. Si el usuario dice "sin texto", añade explícitamente "no text, no letters, no logos".
+4. Mantén la intención original — NO cambies el sujeto.
+5. Idioma: INGLÉS (los modelos de imagen rinden mejor en inglés).
+6. Máx 120 palabras, una sola descripción densa, sin bullets ni explicaciones.
+
+Devuelve SOLO el prompt enriquecido, nada más."""
+
+    try:
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        vertex_key = os.environ.get("VERTEX_API_KEY")
+        api_key = gemini_key or vertex_key
+        if not api_key:
+            return user_prompt
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": enrichment_prompt}]}],
+            "generationConfig": {
+                "temperature": 0.8,
+                "maxOutputTokens": 2048,
+                # Gemini 2.5 Flash gasta tokens en "thinking" antes de responder.
+                # Si no lo desactivamos, el output útil queda truncado a ~80 chars.
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+        r = requests.post(url, json=payload, timeout=45)
+        if r.status_code != 200:
+            print(f"⚠️ enrich falló {r.status_code}, uso prompt original")
+            return user_prompt
+        data = r.json()
+        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        text = (text or "").strip().strip('"').strip("`").strip()
+        if len(text) < 20:
+            return user_prompt
+        print(f"🎨 Prompt enriquecido: {text[:120]}…")
+        return text
+    except Exception as e:
+        print(f"⚠️ enrich error: {e}")
+        return user_prompt
+
+
+def chat_with_openrouter(
+    message: str,
+    model: str,
+    history: list = None,
+    image_base64: str = None,
+    system_prompt: str = None,
+) -> dict:
+    """
+    Chat con OpenRouter (OpenAI-compatible API).
+    Soporta texto + visión + generación de imágenes (modelos compatibles).
+    """
+    import requests
+
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        return {"error": "OPENROUTER_API_KEY no configurada", "success": False}
+
+    real_model = _strip_openrouter_prefix(model)
+    is_image_model = "image" in real_model.lower()
+
+    print(f"💬 OpenRouter chat con {real_model}{' [IMAGE]' if is_image_model else ''}")
+
+    # Construir mensajes en formato OpenAI
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+
+    if history:
+        for h in history:
+            role = "user" if h.get("role") == "user" else "assistant"
+            content_parts = []
+            if h.get("image_base64"):
+                mime = h.get("image_mime", "image/jpeg")
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{h['image_base64']}"}
+                })
+            if h.get("content"):
+                content_parts.append({"type": "text", "text": h["content"]})
+            if content_parts:
+                # Si es solo texto, simplificar
+                if len(content_parts) == 1 and content_parts[0]["type"] == "text":
+                    messages.append({"role": role, "content": content_parts[0]["text"]})
+                else:
+                    messages.append({"role": role, "content": content_parts})
+
+    # Mensaje actual
+    current_content = []
+    if image_base64:
+        current_content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+        })
+    current_content.append({"type": "text", "text": message})
+    if len(current_content) == 1:
+        messages.append({"role": "user", "content": message})
+    else:
+        messages.append({"role": "user", "content": current_content})
+
+    payload = {
+        "model": real_model,
+        "messages": messages,
+    }
+    # Para modelos con generación de imagen, pedimos modalidad imagen
+    if is_image_model:
+        payload["modalities"] = ["image", "text"]
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://marketing-engine.brisamayacapital.com",
+        "X-Title": "Brisa Maya Marketing Engine",
+    }
+
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=180,
+        )
+        if response.status_code != 200:
+            print(f"❌ OpenRouter error {response.status_code}: {response.text[:300]}")
+            return {"error": f"OpenRouter {response.status_code}: {response.text[:300]}", "success": False}
+
+        data = response.json()
+        msg = data.get("choices", [{}])[0].get("message", {})
+        text = msg.get("content", "") or ""
+
+        # Extraer imágenes si vienen
+        images_b64 = []
+        for img in (msg.get("images") or []):
+            url = (img.get("image_url") or {}).get("url", "")
+            if url.startswith("data:") and "base64," in url:
+                images_b64.append(url.split("base64,", 1)[1])
+
+        result = {
+            "response": text,
+            "model_used": real_model,
+            "success": True,
+        }
+        if images_b64:
+            result["images_base64"] = images_b64
+        return result
+
+    except Exception as e:
+        print(f"❌ Error OpenRouter: {e}")
+        return {"error": str(e), "success": False}
+
+
+def generate_image_openrouter(prompt: str, model: str) -> dict:
+    """
+    Genera una imagen vía OpenRouter (modelos con capacidad image).
+    """
+    real_model = _strip_openrouter_prefix(model)
+    result = chat_with_openrouter(
+        message=prompt,
+        model=f"openrouter/{real_model}",
+        system_prompt=None,
+    )
+    if not result.get("success"):
+        return {"error": result.get("error", "Unknown OpenRouter error")}
+
+    images = result.get("images_base64") or []
+    if not images:
+        return {"error": "OpenRouter no devolvió imágenes para este modelo"}
+
+    return {
+        "image_base64": images[0],
+        "mime_type": "image/png",
+        "model_used": real_model,
+        "api_used": "OpenRouter",
+        "success": True,
+    }
+
+
 def chat_with_marketing_ai(
     message: str,
     model: str = "gemini-2.5-flash",
     history: list = None,
     image_base64: str = None,
-    audio_base64: str = None
+    audio_base64: str = None,
+    system_prompt: str = None,
+    api_endpoint: str = "auto"
 ) -> dict:
     """
-    Chat con el Director de Marketing AI usando el modelo seleccionado.
+    Chat con el asistente AI usando el modelo seleccionado.
     
     Args:
         message: Mensaje del usuario
@@ -2177,13 +2484,33 @@ def chat_with_marketing_ai(
         history: Historial de conversación [{role, content}]
         image_base64: Imagen adjunta (opcional)
         audio_base64: Audio adjunto (opcional)
+        system_prompt: System prompt custom (si es None usa MARKETING_SYSTEM_PROMPT)
+        api_endpoint: 'auto', 'gemini', o 'vertex'
     
     Returns:
         dict con "response" (str), "model_used" (str), o "error" (str)
     """
     import requests
+
+    # Routing a OpenRouter si el modelo lo indica
+    if model.startswith("openrouter/") or api_endpoint == "openrouter":
+        return chat_with_openrouter(
+            message=message,
+            model=model if model.startswith("openrouter/") else f"openrouter/{model}",
+            history=history,
+            image_base64=image_base64,
+            system_prompt=system_prompt or MARKETING_SYSTEM_PROMPT,
+        )
+
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    vertex_key = os.environ.get("VERTEX_API_KEY")
     
-    api_key = os.environ.get("VERTEX_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if api_endpoint == "gemini":
+        api_key = gemini_key
+    elif api_endpoint == "vertex":
+        api_key = vertex_key
+    else:
+        api_key = vertex_key or gemini_key
     
     if not api_key:
         return {"error": "No hay API key configurada"}
@@ -2196,14 +2523,23 @@ def chat_with_marketing_ai(
         # Construir el contenido
         contents = []
         
-        # Agregar historial si existe
+        # Historial completo (no recortar) - dejamos que el modelo maneje su context window
         if history:
-            for h in history[-20:]:  # Últimos 20 mensajes (aumentado)
+            for h in history:
                 role = "user" if h.get("role") == "user" else "model"
-                contents.append({
-                    "role": role,
-                    "parts": [{"text": h.get("content", "")}]
-                })
+                parts = []
+                # Soportar imágenes en historial
+                if h.get("image_base64"):
+                    parts.append({
+                        "inlineData": {
+                            "mimeType": h.get("image_mime", "image/jpeg"),
+                            "data": h["image_base64"]
+                        }
+                    })
+                if h.get("content"):
+                    parts.append({"text": h["content"]})
+                if parts:
+                    contents.append({"role": role, "parts": parts})
         
         # Construir el mensaje actual
         current_parts = []
@@ -2236,12 +2572,12 @@ def chat_with_marketing_ai(
         
         payload = {
             "systemInstruction": {
-                "parts": [{"text": MARKETING_SYSTEM_PROMPT}]
+                "parts": [{"text": system_prompt or MARKETING_SYSTEM_PROMPT}]
             },
             "contents": contents,
             "generationConfig": {
                 "temperature": 0.7,
-                "maxOutputTokens": 8192  # Sin límites prácticos
+                "maxOutputTokens": 8192
             }
         }
         

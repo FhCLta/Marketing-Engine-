@@ -8,6 +8,7 @@ import { INITIAL_PROJECTS } from './data/initialProjects'
 
 // Page Components
 import ImageStudio from './pages/ImageStudio'
+import AIChat from './pages/AIChat'
 
 // Utility: Compress image before upload to avoid 413 errors
 const compressImageForUpload = async (file, maxSizeMB = 25, maxDimension = 4000) => {
@@ -51,7 +52,7 @@ const compressImageForUpload = async (file, maxSizeMB = 25, maxDimension = 4000)
 
 function App() {
   // Page Navigation
-  const [currentPage, setCurrentPage] = useState('engine') // 'engine' or 'studio'
+  const [currentPage, setCurrentPage] = useState('engine') // 'engine' | 'studio' | 'aichat'
   
   const [imageSrc, setImageSrc] = useState(null)
   const [imageFile, setImageFile] = useState(null)
@@ -538,6 +539,8 @@ function App() {
       {/* Page Router */}
       {currentPage === 'studio' ? (
         <ImageStudio onBack={() => setCurrentPage('engine')} />
+      ) : currentPage === 'aichat' ? (
+        <AIChat onBack={() => setCurrentPage('engine')} />
       ) : (
     <div className="app-container">
       {/* SIDEBAR / CONTROLS */}
@@ -547,6 +550,15 @@ function App() {
           <div className="brand-subtitle">Marketing Engine AI</div>
         </div>
         
+        {/* AI CHAT BUTTON */}
+        <button 
+          className="btn btn-ai" 
+          style={{width: '100%', marginBottom: '10px', padding: '12px', background: 'linear-gradient(135deg, #0ea5e9, #6366f1)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer'}}
+          onClick={() => setCurrentPage('aichat')}
+        >
+          💬 AI Chat (Generador de Imágenes)
+        </button>
+
         {/* AI STUDIO BUTTON */}
         <button 
           className="btn btn-ai" 

@@ -334,20 +334,23 @@ class ChatRequest(BaseModel):
     history: Optional[List[dict]] = []
     image_base64: Optional[str] = None
     audio_base64: Optional[str] = None
+    system_prompt: Optional[str] = None
+    api_endpoint: str = "auto"
 
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     """
-    Chat con el Director de Marketing AI.
-    Soporta texto, imágenes y audio.
+    Chat con la IA. Soporta texto, imágenes, audio y system prompt custom.
     """
     result = chat_with_marketing_ai(
         message=request.message,
         model=request.model,
         history=request.history,
         image_base64=request.image_base64,
-        audio_base64=request.audio_base64
+        audio_base64=request.audio_base64,
+        system_prompt=request.system_prompt,
+        api_endpoint=request.api_endpoint
     )
     return result
 
@@ -356,7 +359,10 @@ class GenerateImageRequest(BaseModel):
     prompt: str
     aspect_ratio: str = "1:1"
     model: str = "nano-banana-pro-preview"
-    api_endpoint: str = "auto"  # 'auto', 'gemini', 'vertex'
+    api_endpoint: str = "auto"  # 'auto', 'gemini', 'vertex', 'openrouter'
+    enhance_style: str = "real_estate"  # 'real_estate', 'viral', 'crypto', 'none'
+    history: Optional[List[dict]] = None  # contexto de conversación para enriquecer prompt
+    enrich: bool = True  # enriquecer prompt con contexto antes de generar
 
 
 @app.post("/api/studio/generate-image-v2")
@@ -368,7 +374,10 @@ async def generate_image_v2(request: GenerateImageRequest):
         prompt=request.prompt,
         aspect_ratio=request.aspect_ratio,
         model=request.model,
-        api_endpoint=request.api_endpoint
+        api_endpoint=request.api_endpoint,
+        enhance_style=request.enhance_style,
+        chat_history=request.history,
+        enrich=request.enrich,
     )
     return result
 
