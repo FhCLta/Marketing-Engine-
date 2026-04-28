@@ -2239,6 +2239,219 @@ def _strip_openrouter_prefix(model: str) -> str:
     return model[len("openrouter/"):] if model.startswith("openrouter/") else model
 
 
+def _gemini_text_call(prompt: str, model: str, max_tokens: int = 8192, temperature: float = 0.85) -> str:
+    """Wrapper para llamadas de texto a Gemini con thinking off + JSON mode."""
+    import requests
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VERTEX_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY no configurada")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+            "thinkingConfig": {"thinkingBudget": 0},
+            "responseMimeType": "application/json",
+        },
+    }
+    r = requests.post(url, json=payload, timeout=120)
+    if r.status_code != 200:
+        raise RuntimeError(f"Gemini {r.status_code}: {r.text[:300]}")
+    data = r.json()
+    text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+    text = (text or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
+    return text
+
+
+def build_visual_bible(
+    script: str,
+    style_hint: str = "viral",
+    aspect_ratio: str = "9:16",
+    model: str = "gemini-2.5-flash",
+) -> dict:
+    """
+    Etapa 1: Lee el guion y deduce la 'biblia visual' que regirá las 9 escenas.
+    Garantiza consistencia: misma paleta, cámara, lente, mood, calidad.
+    Devuelve el JSON Bible para inyectarlo en cada prompt de escena.
+    """
+    import json as _json
+
+    style_label = {
+        "viral":       "viral redes sociales (cinematográfico, contraste alto, hook visual)",
+        "crypto":      "cripto/IA/tech/trading (cyberpunk, neón dramático)",
+        "real_estate": "real estate de lujo Riviera Maya (golden hour, arquitectura, aspiracional)",
+        "none":        "deducir el estilo más impactante según el tema del guion",
+    }.get(style_hint, "estilo libre")
+
+    bible_prompt = f"""Eres un director de fotografía y director de arte de Hollywood preparando la "biblia visual" de un reel/short cinematográfico.
+
+GUION COMPLETO:
+\"\"\"
+{script}
+\"\"\"
+
+ESTILO SOLICITADO: {style_label}
+ASPECT RATIO: {aspect_ratio}
+
+TU TAREA: Lee el guion, identifica el TEMA CENTRAL real (no asumas, infiere del texto) y diseña una biblia visual que se aplicará IDÉNTICA a las 9-12 imágenes del reel para que se vean como frames de la misma película.
+
+REGLAS:
+1. Adapta TODA decisión al tema real del guion (no impongas elementos ajenos: si el guion es de fitness, no metas monedas; si es real estate, no metas robots; si es cripto, no metas casas).
+2. La paleta tiene MÁXIMO 3 colores dominantes con códigos hex específicos.
+3. La cámara/lente debe ser un setup real de cine que combine con el tema.
+4. El "mood" describe la atmósfera emocional dominante de la pieza completa.
+5. Las "quality_tags" son las palabras clave técnicas que se inyectarán en cada prompt.
+6. El "visual_universe" describe en 1-2 frases el "mundo" donde ocurren todas las escenas (ej: "trading floor cyberpunk en plena tormenta económica" o "villa de lujo en Tulum al atardecer dorado").
+7. El "symbolic_kit" lista 4-6 elementos simbólicos que pueden aparecer recurrentemente (objetos hero, props, motivos visuales) — DEDUCIDOS DEL GUION, no genéricos.
+
+FORMATO — EXCLUSIVAMENTE JSON VÁLIDO (sin markdown):
+{{
+  "theme": "tema central inferido del guion en 1 frase",
+  "visual_universe": "el mundo único donde ocurren todas las escenas",
+  "mood": "atmósfera emocional dominante (ej: épico-dramático, aspiracional-cálido, oscuro-tenso)",
+  "palette": {{
+    "primary": "#hex",
+    "secondary": "#hex",
+    "accent": "#hex",
+    "description": "ej: deep teal, burnt orange, gold accents"
+  }},
+  "lighting": "setup de iluminación específico (ej: dramatic chiaroscuro with rim light + practical neons + volumetric god rays)",
+  "camera": "ej: shot on Arri Alexa Mini LF, anamorphic 1.85 lens, shallow depth of field f/1.4",
+  "film_grain": "ej: Kodak Vision3 500T film stock with subtle organic grain",
+  "art_direction": "estilo artístico (ej: editorial movie poster, hyperrealistic CGI render, cinematic photoreal)",
+  "symbolic_kit": ["elemento1 deducido del guion", "elemento2", "elemento3", "elemento4"],
+  "quality_tags": "epic cinematic movie poster, hyper-detailed, maximalist composition, dramatic chiaroscuro, volumetric god rays, anamorphic lens flare, ultra-detailed 8K, photorealistic CGI, particles suspended in mid-air, motion blur, editorial poster photography",
+  "negative_prompt": "no text overlays, no captions, no logos, no watermarks, no flat composition, no stock photo aesthetic"
+}}"""
+
+    try:
+        text = _gemini_text_call(bible_prompt, model=model, max_tokens=4096, temperature=0.7)
+        bible = _json.loads(text)
+        return {**bible, "success": True}
+    except Exception as e:
+        return {"error": f"Bible error: {e}", "success": False}
+
+
+def split_script_into_scenes(
+    script: str,
+    seconds_per_image: float = 5.0,
+    style_hint: str = "viral",
+    aspect_ratio: str = "9:16",
+    model: str = "gemini-2.5-flash",
+    viral_mode: bool = True,  # mantenido por compat — siempre cinematográfico ahora
+    bible: dict = None,
+) -> dict:
+    """
+    Etapa 2: Divide el guion en escenas usando la Visual Bible para garantizar consistencia.
+    Si no se pasa bible, la genera internamente.
+    """
+    import math, json as _json
+
+    script = (script or "").strip()
+    if not script:
+        return {"error": "Guion vacío", "success": False}
+
+    word_count = len(re.findall(r"\b\w+\b", script))
+    total_seconds = word_count / 2.5
+    n_scenes = max(1, math.ceil(total_seconds / max(0.5, seconds_per_image)))
+
+    # Etapa 1: Bible (si no viene)
+    if not bible or not bible.get("success"):
+        bible = build_visual_bible(script, style_hint, aspect_ratio, model)
+        if not bible.get("success"):
+            return {"error": bible.get("error", "Fallo Bible"), "success": False}
+
+    bible_block = f"""
+═══ BIBLIA VISUAL (aplicar IDÉNTICA en las {n_scenes} escenas) ═══
+TEMA: {bible.get('theme', '')}
+UNIVERSO VISUAL: {bible.get('visual_universe', '')}
+MOOD: {bible.get('mood', '')}
+PALETA: {bible.get('palette', {}).get('description', '')} ({bible.get('palette', {}).get('primary','')}, {bible.get('palette', {}).get('secondary','')}, {bible.get('palette', {}).get('accent','')})
+ILUMINACIÓN: {bible.get('lighting', '')}
+CÁMARA/LENTE: {bible.get('camera', '')}
+GRANO/STOCK: {bible.get('film_grain', '')}
+DIRECCIÓN DE ARTE: {bible.get('art_direction', '')}
+KIT SIMBÓLICO disponible: {', '.join(bible.get('symbolic_kit', []))}
+QUALITY TAGS (incluir SIEMPRE): {bible.get('quality_tags', '')}
+NEGATIVOS: {bible.get('negative_prompt', '')}
+"""
+
+    director_prompt = f"""Eres un director de cine convirtiendo un guion en storyboard cinematográfico para reels virales. Te entregaron una BIBLIA VISUAL fija — DEBES respetarla en cada escena para que las {n_scenes} imágenes parezcan frames de la misma película.
+
+GUION COMPLETO:
+\"\"\"
+{script}
+\"\"\"
+
+DATOS:
+- Palabras: {word_count} · Duración: {total_seconds:.1f}s
+- Cada imagen cubre ~{seconds_per_image}s
+- Total de escenas: EXACTAMENTE {n_scenes}
+- Aspect ratio: {aspect_ratio}
+{bible_block}
+
+═══ TU TAREA ═══
+Divide el guion en {n_scenes} escenas consecutivas. Cada escena:
+1. Cubre un fragmento real de la narración (no inventes texto que no existe).
+2. Su prompt visual interpreta ese fragmento de forma CINEMATOGRÁFICA y RELEVANTE al tema del guion.
+3. Aplica IDÉNTICOS los parámetros de la BIBLIA (paleta, cámara, lente, grano, mood, quality_tags).
+4. Solo varía: el sujeto/acción concreta, el tipo de plano (shot_type) y la composición.
+
+═══ REGLAS DE PROMPT VISUAL (CRÍTICAS) ═══
+A. Estructura jerárquica obligatoria de cada prompt (en este orden):
+   [SHOT TYPE] of [HERO SUBJECT performing ACTION relevant to the script fragment] in [LOCATION from visual_universe], [2-3 SECONDARY ELEMENTS in midground], [BACKGROUND atmospheric layer], [PARTICLE/EFFECT layer suspended mid-air], [LIGHTING from bible], [PALETTE from bible], [CAMERA + LENS from bible], [FILM GRAIN from bible], [ART DIRECTION], [QUALITY TAGS from bible], vertical {aspect_ratio} aspect ratio.
+
+B. EL CONTENIDO debe inferirse del fragmento — NO copies ejemplos de boxeo, monedas, o guantes a menos que el guion lo justifique. Si el guion es de fitness, los símbolos son fitness; si es real estate, son arquitectura; si es viaje, son paisajes; etc.
+
+C. NUNCA stock photo: prohibido "person at desk", "hands on keyboard", "screen with chart" salvo que el guion lo exija. Prefiere metáforas visuales potentes pero coherentes al tema.
+
+D. Variedad de planos OBLIGATORIA — alterna entre: extreme close-up, close-up, medium shot, wide shot, aerial top-down, POV, dutch angle, low-angle hero shot. No repitas el mismo dos veces seguidas.
+
+E. Hook brutal en escena #1 (el que detiene scroll en 0.5s) y climax visual en penúltima (la imagen más épica).
+
+F. Una emoción dominante por escena (curiosity, awe, urgency, FOMO, desire, shock, tension, triumph, mystery, empowerment, dread, euphoria).
+
+G. Prompt en INGLÉS DENSO de 130-220 palabras, sin bullets, sin saltos de línea, sin markdown.
+
+H. Termina SIEMPRE con: "{bible.get('negative_prompt', 'no text, no logos')}, vertical {aspect_ratio} aspect ratio."
+
+═══ FORMATO DE SALIDA — EXCLUSIVAMENTE JSON VÁLIDO ═══
+{{
+  "scenes": [
+    {{
+      "index": 1,
+      "narration": "fragmento exacto del guion",
+      "duration": {seconds_per_image},
+      "shot_type": "extreme close-up | close-up | medium shot | wide shot | aerial | POV | dutch angle | low-angle hero",
+      "emotion": "curiosity | awe | urgency | FOMO | desire | shock | tension | triumph | mystery | empowerment | dread | euphoria",
+      "visual_hook": "el elemento específico que captura atención (deducido del fragmento, no genérico)",
+      "prompt": "[Shot type] of ... [denso, 130-220 palabras, siguiendo estructura jerárquica y bible] ..."
+    }}
+  ]
+}}"""
+
+    try:
+        text = _gemini_text_call(director_prompt, model=model, max_tokens=16384, temperature=0.9)
+        plan = _json.loads(text)
+        scenes = plan.get("scenes", [])
+        if not scenes:
+            return {"error": "Director devolvió 0 escenas", "raw": text[:500], "success": False}
+        return {
+            "scenes": scenes,
+            "bible": bible,
+            "total_scenes": len(scenes),
+            "total_duration": round(total_seconds, 1),
+            "words": word_count,
+            "wpm": 150,
+            "success": True,
+        }
+    except Exception as e:
+        return {"error": f"Director error: {e}", "success": False}
+
+
 def enrich_image_prompt_from_context(
     user_prompt: str,
     chat_history: list = None,

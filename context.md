@@ -15,6 +15,8 @@ Funciones principales:
 - Renderizar anuncios 8K con overlays de texto/branding (Pillow).
 - Generar **copy publicitario** y **posts sociales** en varios tonos.
 - **Design Copilot**: chat con Claude/Gemini que genera y edita HTML/CSS de anuncios.
+- **AI Chat**: chat estilo ChatGPT con generación de imágenes inline + storyboard.
+- **🎬 Storyboard automático Guion → Imágenes en cadena**: divide guion narrado en N escenas, genera Visual Bible coherente y produce N imágenes cinematográficas consistentes con costo USD/MXN.
 - Biblioteca de prompts + extracción de prompts/colores desde imágenes.
 - Auth con Google + persistencia en Firestore (proyectos, conversaciones, diseños).
 
@@ -90,7 +92,8 @@ Marketing_Engine/
         ├── data/
         │   └── initialProjects.js # Seed inicial de proyectos
         ├── pages/
-        │   └── ImageStudio.jsx    # UI principal: 4 tabs + Design Copilot (~4641 líneas)
+        │   ├── ImageStudio.jsx    # UI principal: 4 tabs + Design Copilot (~4641 líneas)
+        │   └── AIChat.jsx         # Chat estilo ChatGPT + Storyboard 🎬 (~1700 líneas)
         ├── services/
         │   ├── authService.js     # signInWithGoogle, logOut, onAuthChange
         │   ├── firestoreService.js# Proyectos CRUD
@@ -124,6 +127,9 @@ Todos en [backend/main.py](backend/main.py). CORS abierto (`allow_origins=["*"]`
 | POST | `/api/studio/adapt-prompt`       | Adapta prompt a un proyecto |
 | POST | `/api/studio/create-ad-prompt`   | Crea prompt de anuncio desde referencia |
 | POST | `/api/studio/generate-html-ad`   | Genera HTML/CSS del anuncio |
+| POST | `/api/studio/visual-bible`       | **🎬 Genera Visual Bible** (paleta, cámara, mood) desde guion |
+| POST | `/api/studio/plan-script`        | **🎬 Storyboard**: guion → N escenas con prompts cinematográficos + tabla de costos USD/MXN |
+| GET  | `/api/studio/pricing`            | Tabla de precios por modelo de imagen |
 | GET  | `/api/models`                    | Lista de modelos disponibles |
 | POST | `/api/chat`                      | Chat con Gemini |
 | POST | `/api/chat-claude`               | Chat con Claude (Design Copilot) |
@@ -156,6 +162,21 @@ Todos en [backend/main.py](backend/main.py). CORS abierto (`allow_origins=["*"]`
 4. **💬 Marketing AI** — chat con Gemini + Design Copilot (Claude) para HTML/CSS.
 
 Maneja: auth, conversaciones, galería de diseños guardados, AI learning context (historial → prompt enrichment).
+
+### `pages/AIChat.jsx` (chat estilo ChatGPT + Storyboard)
+- Chat tipo ChatGPT con persistencia en Firestore (vía `conversationsService`).
+- Generación de imágenes inline con enriquecimiento automático del prompt usando contexto de la conversación.
+- Soporta: Gemini (chat), Imagen 4 / Nano Banana / OpenRouter (imagen).
+- Configurable: aspect ratio, estilo (viral / crypto / real_estate / none), modelo, endpoint.
+- Botón **🎬 Storyboard** en topbar abre modal `StoryboardPanel`:
+  - Pega guion → infiere `n_scenes = ceil(words/2.5/seconds_per_image)` (español ≈ 2.5 palabras/seg).
+  - Pipeline 2 etapas en backend:
+    1. **`build_visual_bible(script, style_hint)`** → infiere tema, universo, mood, paleta hex (3 colores), cámara/lente, grano, dirección de arte, kit simbólico.
+    2. **`split_script_into_scenes(..., bible)`** → genera N prompts cinematográficos en inglés siguiendo estructura jerárquica fija + bible idéntica para garantizar consistencia.
+  - UI muestra **Visual Bible Card** (paleta como chips, cámara, mood, símbolos) con botón **🔄 Regenerar dirección visual** (re-planifica sin gastar imágenes).
+  - Tabla de costos USD/MXN por modelo (`IMAGE_MODEL_PRICING` en `main.py`, USD→MXN = 17.5).
+  - Generación en cadena (serial) con barra de progreso, estados por tarjeta (pending/loading/done/error), descarga individual de cada escena.
+  - Cada escena devuelve: `narration`, `duration`, `shot_type`, `emotion`, `visual_hook`, `prompt`.
 
 ### Servicios Firestore
 - `firestoreService.js`: colección `projects`.
@@ -247,14 +268,93 @@ Cada uno trae paleta (Heritage Navy, Obsidian Luxe, Earth Echo, Coastal Ivory, M
 
 ---
 
-## 12. Pendientes conocidos (del README)
+## 12. 🎬 Sistema Storyboard (guion → imágenes en cadena)
+
+Implementado en `backend/ai_copywriter.py` + `backend/main.py` + `frontend/src/pages/AIChat.jsx` (componente `StoryboardPanel`).
+
+### Pipeline 2 etapas
+
+**Etapa 1 — `build_visual_bible(script, style_hint, aspect_ratio, model)`**
+1 llamada a Gemini Flash (con `thinkingBudget=0`, `responseMimeType=application/json`, `temperature=0.7`).
+Devuelve un JSON "biblia visual" deducido del guion:
+```json
+{
+  "theme": "...",
+  "visual_universe": "...",
+  "mood": "...",
+  "palette": { "primary": "#hex", "secondary": "#hex", "accent": "#hex", "description": "..." },
+  "lighting": "...",
+  "camera": "...",
+  "film_grain": "...",
+  "art_direction": "...",
+  "symbolic_kit": ["...", "...", "..."],
+  "quality_tags": "...",
+  "negative_prompt": "..."
+}
+```
+Costo: ~$0.0005 USD por bible. Tiempo: ~2-4s.
+
+**Etapa 2 — `split_script_into_scenes(script, seconds_per_image, ..., bible=None)`**
+Si no recibe `bible`, la genera internamente. Llamada Gemini Flash (`temperature=0.9`, `maxOutputTokens=16384`) que construye N prompts cinematográficos siguiendo estructura jerárquica fija:
+```
+[SHOT TYPE] of [HERO performing ACTION] in [LOCATION], [secondary], [bg], [particles], [LIGHTING from bible], [PALETTE from bible], [CAMERA from bible], [GRAIN from bible], [ART DIRECTION], [QUALITY TAGS], vertical {ar} aspect ratio.
+```
+Cada escena: `index, narration, duration, shot_type, emotion, visual_hook, prompt`.
+
+### Endpoints
+
+- `POST /api/studio/visual-bible` → solo bible (rápido, barato)
+- `POST /api/studio/plan-script` → bible + escenas + tabla de costos por modelo
+
+### Tabla de precios (`IMAGE_MODEL_PRICING` en `main.py`)
+
+| Modelo | USD/img |
+|---|---|
+| `imagen-4.0-ultra-generate-001` | $0.060 |
+| `imagen-4.0-generate-001` | $0.040 |
+| `imagen-4.0-fast-generate-001` | $0.020 |
+| `nano-banana-pro-preview` | $0.039 |
+| `gemini-3.1-flash-image-preview` | $0.039 |
+| `gemini-2.5-flash-image` | $0.030 |
+| `openrouter/google/gemini-2.5-flash-image-preview:free` | $0.000 |
+
+USD→MXN = 17.5 (`USD_TO_MXN` en `main.py`).
+
+### Frontend UX
+
+- Topbar 🎬 abre modal `StoryboardPanel`.
+- Tarjeta **Visual Bible** muestra paleta como chips de color, cámara, mood, símbolos.
+- Botón **🔄 Regenerar dirección visual** → re-planifica sin gastar imágenes ($0.001 vs $0.35 de las imágenes).
+- Tarjetas de escena con: chip 🎥 shot_type, chip 💥 emotion, hook 🪝, prompt completo desplegable, descarga individual.
+- Generación en serie con barra de progreso `done/total`, estados pending/loading/done/error.
+
+### Lógica de partición
+
+```python
+word_count = len(re.findall(r"\b\w+\b", script))
+total_seconds = word_count / 2.5      # español ≈ 2.5 palabras/seg
+n_scenes = ceil(total_seconds / seconds_per_image)
+```
+
+### Aprendizajes clave
+
+- Gemini 2.5+ requiere `"thinkingConfig":{"thinkingBudget":0}` para no truncar outputs (sin esto, los prompts enriquecidos salían a 87 chars).
+- Nano Banana requiere `generationConfig.imageConfig.aspectRatio` (no acepta el campo en la raíz).
+- `responseMimeType="application/json"` evita los markdown fences ` ```json `, pero se mantiene un strip defensivo por si acaso.
+- Estructura jerárquica fija en el prompt produce imágenes consistentes; estructura libre produce caos visual entre escenas.
+- Pasar la bible idéntica a cada prompt resuelve el problema #1 de los storyboards IA: la inconsistencia visual entre escenas.
+
+---
+
+## 13. Pendientes conocidos (del README)
 
 - Pulir UI/UX (responsive, animaciones, dark/light, galería).
 - Consistencia preview ↔ render final.
 - Optimizar carga de imágenes grandes.
 - Mejor manejo de errores de API.
 - Templates predefinidos, historial de versiones, exportar a PNG/PDF, dashboard analytics.
+- **Storyboard**: regenerar escena individual sin tocar las demás · editar prompt manual antes de generar · exportar Bible como JSON · exportar storyboard como ZIP de PNGs · medir y mostrar tiempo real de generación por escena.
 
 ---
 
-_Última actualización del contexto: 27 abril 2026._
+_Última actualización del contexto: 27 abril 2026 — agregado sistema Storyboard 🎬 (guion → Visual Bible → N imágenes en cadena con costo USD/MXN)._

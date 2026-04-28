@@ -206,6 +206,16 @@ export default function AIChat({ onBack }) {
   const [renamingId, setRenamingId] = useState(null)
   const [renameValue, setRenameValue] = useState('')
 
+  // ─── Storyboard (Guión → Imágenes) ─────────────────────────────
+  const [showStoryboard, setShowStoryboard] = useState(false)
+  const [storyScript, setStoryScript] = useState('')
+  const [storySecPerImg, setStorySecPerImg] = useState(5)
+  const [storyPlanning, setStoryPlanning] = useState(false)
+  const [storyPlan, setStoryPlan] = useState(null)   // {scenes, total_scenes, total_duration, words, pricing, usd_to_mxn}
+  const [storyScenes, setStoryScenes] = useState([]) // [{...scene, status, imageBase64, mimeType}]
+  const [storyRunning, setStoryRunning] = useState(false)
+  const [storyDone, setStoryDone] = useState(0)
+
   useEffect(() => {
     savePrefs({ model, chatModel, apiEndpoint, aspectRatio, enhanceStyle, autoDetect })
   }, [model, chatModel, apiEndpoint, aspectRatio, enhanceStyle, autoDetect])
@@ -403,6 +413,134 @@ export default function AIChat({ onBack }) {
     const data = await res.json()
     if (!data.success) throw new Error(data.error || 'Error editando imagen')
     return data
+  }
+
+  // ─── Storyboard: planificar y generar en cadena ─────────────────
+  const callPlanScript = async () => {
+    const res = await fetch(`${API_BASE_URL}/api/studio/plan-script`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        script: storyScript,
+        seconds_per_image: Number(storySecPerImg) || 5,
+        style_hint: enhanceStyle,
+        aspect_ratio: aspectRatio,
+        model: 'gemini-2.5-flash',
+      }),
+    })
+    const data = await res.json()
+    if (!data.success) throw new Error(data.error || 'Error planificando guion')
+    return data
+  }
+
+  const handlePlanScript = async () => {
+    if (!storyScript.trim() || storyPlanning) return
+    setStoryPlanning(true)
+    try {
+      const plan = await callPlanScript()
+      setStoryPlan(plan)
+      setStoryScenes(plan.scenes.map(s => ({ ...s, status: 'pending' })))
+      setStoryDone(0)
+    } catch (e) {
+      alert(`Error: ${e.message}`)
+    } finally {
+      setStoryPlanning(false)
+    }
+  }
+
+  const handleRunStoryboard = async () => {
+    if (storyRunning || !storyScenes.length) return
+    setStoryRunning(true)
+    setStoryDone(0)
+    const updated = [...storyScenes]
+    for (let i = 0; i < updated.length; i++) {
+      updated[i] = { ...updated[i], status: 'loading' }
+      setStoryScenes([...updated])
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/studio/generate-image-v2`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: updated[i].prompt,
+            aspect_ratio: aspectRatio,
+            model,
+            api_endpoint: apiEndpoint,
+            enhance_style: 'none',
+            history: [],
+            enrich: false, // ya viene enriquecido por el planner
+          }),
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        updated[i] = {
+          ...updated[i],
+          status: 'done',
+          imageBase64: data.image_base64,
+          mimeType: data.mime_type || 'image/png',
+        }
+      } catch (e) {
+        updated[i] = { ...updated[i], status: 'error', error: e.message }
+      }
+      setStoryScenes([...updated])
+      setStoryDone(i + 1)
+    }
+    setStoryRunning(false)
+  }
+
+  const handleDownloadScene = (scene, idx) => {
+    if (!scene.imageBase64) return
+    const a = document.createElement('a')
+    a.href = `data:${scene.mimeType || 'image/png'};base64,${scene.imageBase64}`
+    a.download = `escena_${String(idx + 1).padStart(2, '0')}.png`
+    a.click()
+  }
+
+  const handleResetStoryboard = () => {
+    setStoryPlan(null)
+    setStoryScenes([])
+    setStoryDone(0)
+  }
+
+  const handleRegenerateBible = async () => {
+    if (!storyScript.trim() || storyPlanning) return
+    setStoryPlanning(true)
+    try {
+      // 1. Regenera bible
+      const bibleRes = await fetch(`${API_BASE_URL}/api/studio/visual-bible`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: storyScript,
+          style_hint: enhanceStyle,
+          aspect_ratio: aspectRatio,
+          model: 'gemini-2.5-flash',
+        }),
+      })
+      const newBible = await bibleRes.json()
+      if (!newBible.success) throw new Error(newBible.error || 'Error en bible')
+      // 2. Replanifica escenas con nueva bible
+      const res = await fetch(`${API_BASE_URL}/api/studio/plan-script`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: storyScript,
+          seconds_per_image: Number(storySecPerImg) || 5,
+          style_hint: enhanceStyle,
+          aspect_ratio: aspectRatio,
+          model: 'gemini-2.5-flash',
+          bible: newBible,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Error replanificando')
+      setStoryPlan(data)
+      setStoryScenes(data.scenes.map(s => ({ ...s, status: 'pending' })))
+      setStoryDone(0)
+    } catch (e) {
+      alert(`Error: ${e.message}`)
+    } finally {
+      setStoryPlanning(false)
+    }
   }
 
   // ─── Acciones principales ─────────────────────────────────────────
@@ -634,6 +772,7 @@ export default function AIChat({ onBack }) {
             <span style={{ fontWeight: 700 }}>{activeConvo?.title || 'AI Chat'}</span>
             <span className="aichat-topbar-sub">{CHAT_MODELS.find(m => m.id === chatModel)?.name} · {IMAGE_MODELS.find(m => m.id === model)?.name}</span>
           </div>
+          <button className="aichat-icon-btn aichat-storyboard-btn" onClick={() => setShowStoryboard(true)} title="Guion → Imágenes">🎬</button>
           <button className="aichat-icon-btn" onClick={() => setShowSettings(s => !s)} title="Ajustes">⚙️</button>
         </header>
 
@@ -766,7 +905,257 @@ export default function AIChat({ onBack }) {
             <span>Estilo: <strong>{ENHANCE_STYLES.find(s => s.id === enhanceStyle)?.label}</strong></span>
           </div>
         </div>
+
+        {/* STORYBOARD MODAL */}
+        {showStoryboard && (
+          <StoryboardPanel
+            onClose={() => setShowStoryboard(false)}
+            script={storyScript}
+            setScript={setStoryScript}
+            secPerImg={storySecPerImg}
+            setSecPerImg={setStorySecPerImg}
+            planning={storyPlanning}
+            running={storyRunning}
+            plan={storyPlan}
+            scenes={storyScenes}
+            done={storyDone}
+            onPlan={handlePlanScript}
+            onRun={handleRunStoryboard}
+            onReset={handleResetStoryboard}
+            onRegenBible={handleRegenerateBible}
+            onDownload={handleDownloadScene}
+            currentModel={model}
+            modelLabel={IMAGE_MODELS.find(m => m.id === model)?.name || model}
+            aspectRatio={aspectRatio}
+            enhanceStyle={enhanceStyle}
+          />
+        )}
       </main>
+    </div>
+  )
+}
+
+// ─── Storyboard Panel ───────────────────────────────────────────
+function StoryboardPanel({
+  onClose, script, setScript, secPerImg, setSecPerImg,
+  planning, running, plan, scenes, done,
+  onPlan, onRun, onReset, onRegenBible, onDownload,
+  currentModel, modelLabel, aspectRatio, enhanceStyle,
+}) {
+  const pricing = plan?.pricing?.[currentModel]
+  const totalUsd = pricing ? pricing.total_usd : null
+  const totalMxn = pricing ? pricing.total_mxn : null
+  const perImgUsd = pricing ? pricing.per_image_usd : null
+  const perImgMxn = pricing ? pricing.per_image_mxn : null
+  const progress = scenes.length ? Math.round((done / scenes.length) * 100) : 0
+  const bible = plan?.bible
+
+  return (
+    <div className="aichat-modal-backdrop" onClick={onClose}>
+      <div className="aichat-modal aichat-storyboard-modal" onClick={e => e.stopPropagation()}>
+        <header className="aichat-modal-header">
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18 }}>🎬 Guion → Imágenes en cadena</h2>
+            <span style={{ fontSize: 12, color: '#7b8095' }}>
+              Modelo: <strong>{modelLabel}</strong> · {aspectRatio} · estilo {enhanceStyle}
+            </span>
+          </div>
+          <button className="aichat-icon-btn" onClick={onClose}>✕</button>
+        </header>
+
+        <div className="aichat-storyboard-body">
+          {!plan && (
+            <div className="aichat-storyboard-input">
+              <label style={{ fontSize: 12, color: '#a0a4b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Pega tu guion aquí
+              </label>
+              <textarea
+                className="aichat-textarea-big"
+                placeholder="Pega aquí el guion completo del reel/short. La IA lo dividirá en escenas y generará una imagen por cada fragmento."
+                value={script}
+                onChange={e => setScript(e.target.value)}
+                rows={10}
+              />
+              <div className="aichat-storyboard-controls">
+                <label>
+                  Segundos por imagen
+                  <input
+                    type="number"
+                    min="2" max="15" step="0.5"
+                    value={secPerImg}
+                    onChange={e => setSecPerImg(e.target.value)}
+                  />
+                </label>
+                <button
+                  className="aichat-btn-primary"
+                  disabled={!script.trim() || planning}
+                  onClick={onPlan}
+                >
+                  {planning ? 'Planificando…' : '🎬 Planificar storyboard'}
+                </button>
+              </div>
+              <p style={{ fontSize: 12, color: '#7b8095' }}>
+                Estimación: ~150 palabras/min (2.5 palabras/seg). Si tu guion dura 45s con 5s por imagen, generará 9 escenas.
+              </p>
+            </div>
+          )}
+
+          {plan && (
+            <>
+              {bible && (
+                <div className="aichat-bible-card">
+                  <div className="aichat-bible-header">
+                    <span className="aichat-bible-title">🎨 Visual Bible</span>
+                    <button className="aichat-btn-ghost" onClick={onRegenBible} disabled={planning || running}>
+                      🔄 Regenerar dirección visual
+                    </button>
+                  </div>
+                  <div className="aichat-bible-grid">
+                    <div className="aichat-bible-row">
+                      <span className="aichat-bible-label">Tema</span>
+                      <span className="aichat-bible-value">{bible.theme}</span>
+                    </div>
+                    <div className="aichat-bible-row">
+                      <span className="aichat-bible-label">Universo</span>
+                      <span className="aichat-bible-value">{bible.visual_universe}</span>
+                    </div>
+                    <div className="aichat-bible-row">
+                      <span className="aichat-bible-label">Mood</span>
+                      <span className="aichat-bible-value">{bible.mood}</span>
+                    </div>
+                    <div className="aichat-bible-row">
+                      <span className="aichat-bible-label">Paleta</span>
+                      <span className="aichat-bible-value aichat-bible-palette">
+                        {bible.palette?.primary && <span className="aichat-color-chip" style={{ background: bible.palette.primary }} title={bible.palette.primary} />}
+                        {bible.palette?.secondary && <span className="aichat-color-chip" style={{ background: bible.palette.secondary }} title={bible.palette.secondary} />}
+                        {bible.palette?.accent && <span className="aichat-color-chip" style={{ background: bible.palette.accent }} title={bible.palette.accent} />}
+                        <em>{bible.palette?.description}</em>
+                      </span>
+                    </div>
+                    <div className="aichat-bible-row">
+                      <span className="aichat-bible-label">Cámara</span>
+                      <span className="aichat-bible-value">{bible.camera}</span>
+                    </div>
+                    <div className="aichat-bible-row">
+                      <span className="aichat-bible-label">Iluminación</span>
+                      <span className="aichat-bible-value">{bible.lighting}</span>
+                    </div>
+                    {bible.symbolic_kit?.length > 0 && (
+                      <div className="aichat-bible-row">
+                        <span className="aichat-bible-label">Símbolos</span>
+                        <span className="aichat-bible-value">
+                          {bible.symbolic_kit.map((s, i) => (
+                            <span key={i} className="aichat-bible-chip">{s}</span>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="aichat-storyboard-summary">
+                <div className="aichat-stat">
+                  <span className="aichat-stat-label">Escenas</span>
+                  <strong>{plan.total_scenes}</strong>
+                </div>
+                <div className="aichat-stat">
+                  <span className="aichat-stat-label">Duración</span>
+                  <strong>{plan.total_duration}s</strong>
+                </div>
+                <div className="aichat-stat">
+                  <span className="aichat-stat-label">Palabras</span>
+                  <strong>{plan.words}</strong>
+                </div>
+                {pricing && (
+                  <>
+                    <div className="aichat-stat">
+                      <span className="aichat-stat-label">$/imagen</span>
+                      <strong>${perImgUsd?.toFixed(3)} USD</strong>
+                      <span style={{ fontSize: 11, color: '#7b8095' }}>${perImgMxn?.toFixed(2)} MXN</span>
+                    </div>
+                    <div className="aichat-stat aichat-stat-total">
+                      <span className="aichat-stat-label">Total estimado</span>
+                      <strong>${totalUsd?.toFixed(3)} USD</strong>
+                      <span style={{ fontSize: 11, color: '#7b8095' }}>${totalMxn?.toFixed(2)} MXN</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {running || done > 0 ? (
+                <div className="aichat-progress-bar">
+                  <div className="aichat-progress-fill" style={{ width: `${progress}%` }} />
+                  <span>{done} / {scenes.length} ({progress}%)</span>
+                </div>
+              ) : null}
+
+              <div className="aichat-storyboard-actions">
+                {!running && done < scenes.length && (
+                  <button className="aichat-btn-primary" onClick={onRun}>
+                    {done === 0 ? '🚀 Generar todas las imágenes' : '▶️ Continuar'}
+                  </button>
+                )}
+                {running && <span style={{ color: '#a0a4b8', fontSize: 13 }}>Generando en cadena…</span>}
+                <button className="aichat-btn-ghost" onClick={onReset} disabled={running}>
+                  🔄 Nuevo guion
+                </button>
+              </div>
+
+              <div className="aichat-scenes-grid">
+                {scenes.map((sc, i) => (
+                  <div key={i} className={`aichat-scene aichat-scene-${sc.status}`}>
+                    <div className="aichat-scene-header">
+                      <span className="aichat-scene-num">#{i + 1}</span>
+                      <span className="aichat-scene-dur">{sc.duration}s</span>
+                      <span className={`aichat-scene-badge aichat-scene-badge-${sc.status}`}>
+                        {sc.status === 'pending' && '⏳ pendiente'}
+                        {sc.status === 'loading' && '⚙️ generando'}
+                        {sc.status === 'done' && '✅ lista'}
+                        {sc.status === 'error' && '❌ error'}
+                      </span>
+                    </div>
+                    {sc.status === 'done' && sc.imageBase64 ? (
+                      <img
+                        className="aichat-scene-img"
+                        src={`data:${sc.mimeType || 'image/png'};base64,${sc.imageBase64}`}
+                        alt={`Escena ${i + 1}`}
+                      />
+                    ) : (
+                      <div className="aichat-scene-placeholder">
+                        {sc.status === 'loading' ? <div className="aichat-spinner" /> : null}
+                        {sc.status === 'error' ? <span style={{ color: '#ef4444', fontSize: 12 }}>{sc.error}</span> : null}
+                      </div>
+                    )}
+                    <div className="aichat-scene-narration">
+                      <strong>Narración:</strong> {sc.narration}
+                    </div>
+                    {(sc.shot_type || sc.emotion || sc.visual_hook) && (
+                      <div className="aichat-scene-meta">
+                        {sc.shot_type && <span className="aichat-meta-chip aichat-meta-shot">🎥 {sc.shot_type}</span>}
+                        {sc.emotion && <span className="aichat-meta-chip aichat-meta-emotion">💥 {sc.emotion}</span>}
+                        {sc.visual_hook && (
+                          <div className="aichat-meta-hook">
+                            <strong>🪝 Hook:</strong> {sc.visual_hook}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <details className="aichat-scene-prompt">
+                      <summary>Ver prompt visual</summary>
+                      <p>{sc.prompt}</p>
+                    </details>
+                    {sc.status === 'done' && (
+                      <button className="aichat-btn-ghost" onClick={() => onDownload(sc, i)}>
+                        ⬇ Descargar
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1227,6 +1616,200 @@ function Styles() {
       }
       .aichat-messages::-webkit-scrollbar-thumb:hover,
       .aichat-convo-list::-webkit-scrollbar-thumb:hover { background: #333947; }
+
+      /* ─── Storyboard Modal ─── */
+      .aichat-modal-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(6px);
+        z-index: 9999; display: flex; align-items: flex-start; justify-content: center;
+        padding: 20px; overflow-y: auto;
+      }
+      .aichat-modal {
+        background: #14161e; border: 1px solid #262a36; border-radius: 16px;
+        width: 100%; max-width: 1100px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        margin-top: 20px;
+      }
+      .aichat-modal-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 16px 20px; border-bottom: 1px solid #262a36;
+      }
+      .aichat-storyboard-body { padding: 20px; }
+      .aichat-storyboard-input { display: flex; flex-direction: column; gap: 12px; }
+      .aichat-textarea-big {
+        width: 100%; min-height: 200px; background: #0d0e12;
+        border: 1px solid #262a36; border-radius: 10px;
+        color: #e8e9ed; padding: 14px; font-size: 14px; line-height: 1.5;
+        font-family: inherit; resize: vertical;
+      }
+      .aichat-textarea-big:focus { outline: none; border-color: #6366f1; }
+      .aichat-storyboard-controls {
+        display: flex; gap: 12px; align-items: end; flex-wrap: wrap;
+      }
+      .aichat-storyboard-controls label {
+        display: flex; flex-direction: column; gap: 4px; font-size: 12px;
+        color: #a0a4b8; text-transform: uppercase; letter-spacing: 0.5px;
+      }
+      .aichat-storyboard-controls input[type="number"] {
+        background: #0d0e12; border: 1px solid #262a36; border-radius: 8px;
+        color: #e8e9ed; padding: 8px 12px; font-size: 14px; width: 100px;
+      }
+      .aichat-btn-primary {
+        background: linear-gradient(135deg, #6366f1, #db2777);
+        color: #fff; border: 0; border-radius: 8px; padding: 10px 18px;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+      }
+      .aichat-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+      .aichat-btn-ghost {
+        background: transparent; color: #a0a4b8; border: 1px solid #262a36;
+        border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+      }
+      .aichat-btn-ghost:hover:not(:disabled) { background: #1a1d28; color: #e8e9ed; }
+
+      .aichat-storyboard-summary {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px; margin-bottom: 16px;
+      }
+      .aichat-stat {
+        background: #1a1d28; border: 1px solid #262a36; border-radius: 10px;
+        padding: 10px 14px; display: flex; flex-direction: column; gap: 2px;
+      }
+      .aichat-stat-label { font-size: 11px; color: #7b8095; text-transform: uppercase; }
+      .aichat-stat strong { font-size: 18px; color: #e8e9ed; }
+      .aichat-stat-total { background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(219,39,119,0.15)); border-color: #6366f1; }
+
+      .aichat-progress-bar {
+        position: relative; width: 100%; height: 28px; background: #0d0e12;
+        border-radius: 14px; overflow: hidden; margin-bottom: 14px;
+        border: 1px solid #262a36;
+      }
+      .aichat-progress-fill {
+        position: absolute; left: 0; top: 0; height: 100%;
+        background: linear-gradient(90deg, #6366f1, #db2777);
+        transition: width 0.3s ease;
+      }
+      .aichat-progress-bar > span {
+        position: absolute; inset: 0; display: flex; align-items: center;
+        justify-content: center; font-size: 12px; font-weight: 600;
+        color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      }
+
+      .aichat-storyboard-actions {
+        display: flex; gap: 12px; align-items: center; margin-bottom: 20px;
+      }
+
+      .aichat-scenes-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .aichat-scene {
+        background: #1a1d28; border: 1px solid #262a36; border-radius: 12px;
+        padding: 12px; display: flex; flex-direction: column; gap: 10px;
+      }
+      .aichat-scene-loading { border-color: #6366f1; }
+      .aichat-scene-done { border-color: #10b981; }
+      .aichat-scene-error { border-color: #ef4444; }
+      .aichat-scene-header {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 12px; color: #a0a4b8;
+      }
+      .aichat-scene-num { font-weight: 700; color: #e8e9ed; }
+      .aichat-scene-badge {
+        font-size: 10px; padding: 2px 8px; border-radius: 999px;
+        background: #262a36;
+      }
+      .aichat-scene-badge-done { background: rgba(16,185,129,0.2); color: #10b981; }
+      .aichat-scene-badge-loading { background: rgba(99,102,241,0.2); color: #6366f1; }
+      .aichat-scene-badge-error { background: rgba(239,68,68,0.2); color: #ef4444; }
+      .aichat-scene-img { width: 100%; border-radius: 8px; display: block; }
+      .aichat-scene-placeholder {
+        width: 100%; aspect-ratio: 9/16; background: #0d0e12; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .aichat-spinner {
+        width: 36px; height: 36px; border: 3px solid #262a36;
+        border-top-color: #6366f1; border-radius: 50%;
+        animation: aichat-spin 0.8s linear infinite;
+      }
+      .aichat-scene-narration {
+        font-size: 12px; color: #c5c8d4; line-height: 1.4;
+      }
+      .aichat-scene-narration strong { color: #e8e9ed; }
+      .aichat-scene-prompt summary {
+        font-size: 11px; color: #7b8095; cursor: pointer; user-select: none;
+      }
+      .aichat-scene-prompt p {
+        font-size: 11px; color: #a0a4b8; margin: 6px 0 0;
+        max-height: 120px; overflow-y: auto; line-height: 1.4;
+      }
+      .aichat-viral-toggle {
+        flex-direction: row !important; align-items: center !important;
+        gap: 8px !important; cursor: pointer; padding: 8px 12px;
+        background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(219,39,119,0.1));
+        border: 1px solid #262a36; border-radius: 8px;
+        text-transform: none !important; letter-spacing: 0 !important;
+        color: #e8e9ed !important; font-size: 13px !important;
+      }
+      .aichat-viral-toggle input { width: auto !important; accent-color: #db2777; }
+      .aichat-viral-toggle:hover { border-color: #db2777; }
+
+      /* Visual Bible Card */
+      .aichat-bible-card {
+        background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(219,39,119,0.08));
+        border: 1px solid #6366f1; border-radius: 12px;
+        padding: 14px 18px; margin-bottom: 16px;
+      }
+      .aichat-bible-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 12px;
+      }
+      .aichat-bible-title {
+        font-size: 14px; font-weight: 700;
+        background: linear-gradient(135deg, #6366f1, #db2777);
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent;
+      }
+      .aichat-bible-grid {
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .aichat-bible-row {
+        display: grid; grid-template-columns: 110px 1fr; gap: 10px;
+        font-size: 12px; line-height: 1.5;
+      }
+      .aichat-bible-label {
+        color: #7b8095; text-transform: uppercase; letter-spacing: 0.5px;
+        font-size: 10px; font-weight: 600;
+      }
+      .aichat-bible-value { color: #e8e9ed; }
+      .aichat-bible-palette {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      }
+      .aichat-color-chip {
+        display: inline-block; width: 18px; height: 18px;
+        border-radius: 4px; border: 1px solid #262a36;
+      }
+      .aichat-bible-palette em {
+        font-style: normal; color: #a0a4b8; font-size: 11px;
+      }
+      .aichat-bible-chip {
+        display: inline-block; padding: 2px 8px; margin: 2px 4px 2px 0;
+        background: #0d0e12; border: 1px solid #262a36; border-radius: 999px;
+        font-size: 10px; color: #c5c8d4;
+      }
+      .aichat-scene-meta {
+        display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
+      }
+      .aichat-meta-chip {
+        font-size: 10px; padding: 3px 8px; border-radius: 999px;
+        background: #0d0e12; border: 1px solid #262a36; color: #c5c8d4;
+      }
+      .aichat-meta-shot { border-color: #6366f1; color: #a5b4fc; }
+      .aichat-meta-emotion { border-color: #db2777; color: #f9a8d4; }
+      .aichat-meta-hook {
+        flex-basis: 100%; font-size: 11px; color: #c5c8d4;
+        background: rgba(219,39,119,0.08); border-left: 2px solid #db2777;
+        padding: 6px 8px; border-radius: 4px; line-height: 1.4;
+      }
+      .aichat-meta-hook strong { color: #f9a8d4; }
     `}</style>
   )
 }

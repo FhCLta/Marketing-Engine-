@@ -34,7 +34,9 @@ from ai_copywriter import (
     get_available_models,
     generate_html_ad,
     CHAT_MODELS,
-    IMAGE_MODELS
+    IMAGE_MODELS,
+    split_script_into_scenes,
+    build_visual_bible,
 )
 
 app = FastAPI(title="Brisa Maya Marketing Engine API")
@@ -380,6 +382,92 @@ async def generate_image_v2(request: GenerateImageRequest):
         enrich=request.enrich,
     )
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SCRIPT-TO-IMAGES — Planificación automática de escenas
+# ═══════════════════════════════════════════════════════════════════
+
+# Precios USD por imagen (estimados a abril 2026)
+IMAGE_MODEL_PRICING = {
+    "imagen-4.0-ultra-generate-001":   0.060,
+    "imagen-4.0-generate-001":         0.040,
+    "imagen-4.0-fast-generate-001":    0.020,
+    "nano-banana-pro-preview":         0.039,
+    "gemini-3.1-flash-image-preview":  0.039,
+    "gemini-2.5-flash-image":          0.039,
+    "openrouter/google/gemini-2.5-flash-image-preview:free":  0.000,
+    "openrouter/google/gemini-2.5-flash-image-preview":       0.030,
+}
+USD_TO_MXN = 17.5  # tipo de cambio aproximado
+
+
+class PlanScriptRequest(BaseModel):
+    script: str
+    seconds_per_image: float = 5.0
+    style_hint: str = "viral"  # viral, crypto, real_estate, none
+    aspect_ratio: str = "9:16"
+    model: str = "gemini-2.5-flash"
+    viral_mode: bool = True
+    bible: Optional[dict] = None  # opcional: bible pre-generada para reusar
+
+
+class BibleRequest(BaseModel):
+    script: str
+    style_hint: str = "viral"
+    aspect_ratio: str = "9:16"
+    model: str = "gemini-2.5-flash"
+
+
+@app.post("/api/studio/visual-bible")
+async def visual_bible_endpoint(request: BibleRequest):
+    """Genera solo la Visual Bible (rápido, barato) — útil para previsualizar dirección visual."""
+    bible = build_visual_bible(
+        script=request.script,
+        style_hint=request.style_hint,
+        aspect_ratio=request.aspect_ratio,
+        model=request.model,
+    )
+    return bible
+
+
+@app.post("/api/studio/plan-script")
+async def plan_script_endpoint(request: PlanScriptRequest):
+    """
+    Divide un guion en escenas con prompts visuales listos para generar imagen.
+    Devuelve también el costo estimado por modelo de imagen.
+    """
+    result = split_script_into_scenes(
+        script=request.script,
+        seconds_per_image=request.seconds_per_image,
+        style_hint=request.style_hint,
+        aspect_ratio=request.aspect_ratio,
+        model=request.model,
+        viral_mode=request.viral_mode,
+        bible=request.bible,
+    )
+    if not result.get("success"):
+        return result
+
+    # Anexar tabla de costos estimados
+    n = result["total_scenes"]
+    cost_table = {}
+    for mid, usd in IMAGE_MODEL_PRICING.items():
+        cost_table[mid] = {
+            "per_image_usd": usd,
+            "per_image_mxn": round(usd * USD_TO_MXN, 2),
+            "total_usd": round(usd * n, 4),
+            "total_mxn": round(usd * USD_TO_MXN * n, 2),
+        }
+    result["pricing"] = cost_table
+    result["usd_to_mxn"] = USD_TO_MXN
+    return result
+
+
+@app.get("/api/studio/pricing")
+async def pricing_endpoint():
+    """Devuelve la tabla de precios por modelo."""
+    return {"pricing": IMAGE_MODEL_PRICING, "usd_to_mxn": USD_TO_MXN}
 
 
 # ═══════════════════════════════════════════════════════════════════
