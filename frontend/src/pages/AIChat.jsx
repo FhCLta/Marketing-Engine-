@@ -41,6 +41,10 @@ const ASPECT_RATIOS = [
 ]
 
 const IMAGE_MODELS = [
+  { id: 'openai/gpt-image-2', name: 'GPT Image 2', desc: 'OpenAI actual/recomendado + texto' },
+  { id: 'openai/gpt-image-1.5', name: 'GPT Image 1.5', desc: 'OpenAI alta calidad + texto' },
+  { id: 'openai/gpt-image-1', name: 'GPT Image 1', desc: 'OpenAI' },
+  { id: 'openai/gpt-image-1-mini', name: 'GPT Image mini', desc: 'OpenAI economico' },
   { id: 'nano-banana-pro-preview', name: 'Nano Banana Pro', desc: 'Artístico (sin texto)' },
   { id: 'gemini-3.1-flash-image-preview', name: 'Nano Banana 2', desc: 'Rápido (sin texto)' },
   { id: 'gemini-2.5-flash-image', name: 'Nano Banana', desc: 'Estable (sin texto)' },
@@ -52,6 +56,9 @@ const IMAGE_MODELS = [
 ]
 
 const CHAT_MODELS = [
+  { id: 'openai/gpt-5-mini',          name: 'GPT-5 mini',           desc: 'OpenAI rapido' },
+  { id: 'openai/gpt-5',               name: 'GPT-5',                desc: 'OpenAI maxima calidad' },
+  { id: 'openai/gpt-4.1-mini',        name: 'GPT-4.1 mini',         desc: 'OpenAI eficiente' },
   { id: 'gemini-2.5-flash',           name: 'Gemini 2.5 Flash',     desc: 'Rápido' },
   { id: 'gemini-2.5-pro',             name: 'Gemini 2.5 Pro',       desc: 'Recomendado' },
   { id: 'gemini-2.5-flash-lite',      name: 'Gemini 2.5 Flash Lite',desc: 'Ultra rápido' },
@@ -78,6 +85,7 @@ const API_ENDPOINTS = [
   { id: 'auto',       label: 'Auto (según modelo)' },
   { id: 'gemini',     label: 'Gemini API (AIza...)' },
   { id: 'vertex',     label: 'Vertex AI (AQ...)' },
+  { id: 'openai',     label: 'OpenAI API (sk-proj...)' },
   { id: 'openrouter', label: 'OpenRouter (sk-or-...)' },
 ]
 
@@ -87,6 +95,11 @@ const ENHANCE_STYLES = [
   { id: 'crypto',       label: '💰 Cripto / IA / Tech' },
   { id: 'real_estate',  label: '🏖️ Real Estate Lujo' },
 ]
+
+const STORY_REEL_TEMPLATE = `Genera una imagen super detallada, animada, realista y visualmente impactante, de alta calidad y en formato vertical (dimensiones de reel). La imagen debe representar esta parte especifica del guion, ser atractiva, relevante al mensaje y perfecta para captar la atencion en un short o reel. No debe llevar texto.
+
+Parte especifica del guion:
+"{{narration}}"`
 
 const SYSTEM_GUIDE = `Eres un asistente creativo experto en generación de imágenes para marketing visual en MÚLTIPLES nichos:
 
@@ -135,10 +148,16 @@ const loadPrefs = () => {
   try {
     const raw = localStorage.getItem(PREFS_KEY)
     return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
+  } catch {
+    return {}
+  }
 }
 const savePrefs = (prefs) => {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)) } catch {}
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+  } catch {
+    return
+  }
 }
 
 const generateTitle = (text) => {
@@ -148,6 +167,13 @@ const generateTitle = (text) => {
 }
 
 const newId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+const formatTime = (seconds) => {
+  const safe = Math.max(0, Math.round(seconds || 0))
+  const mins = Math.floor(safe / 60)
+  const secs = String(safe % 60).padStart(2, '0')
+  return `${mins}:${secs}`
+}
 
 const newConversation = () => ({
   id: newId(),
@@ -215,10 +241,14 @@ export default function AIChat({ onBack }) {
   const [storyScenes, setStoryScenes] = useState([]) // [{...scene, status, imageBase64, mimeType}]
   const [storyRunning, setStoryRunning] = useState(false)
   const [storyDone, setStoryDone] = useState(0)
+  const [storyPromptMode, setStoryPromptMode] = useState(initialPrefs.storyPromptMode || 'ai')
+  const [storyTemplate, setStoryTemplate] = useState(initialPrefs.storyTemplate || STORY_REEL_TEMPLATE)
+  const [storyMode, setStoryMode] = useState(initialPrefs.storyMode || 'visual')
+  const [storyCuts, setStoryCuts] = useState(null)
 
   useEffect(() => {
-    savePrefs({ model, chatModel, apiEndpoint, aspectRatio, enhanceStyle, autoDetect })
-  }, [model, chatModel, apiEndpoint, aspectRatio, enhanceStyle, autoDetect])
+    savePrefs({ model, chatModel, apiEndpoint, aspectRatio, enhanceStyle, autoDetect, storyPromptMode, storyTemplate, storyMode })
+  }, [model, chatModel, apiEndpoint, aspectRatio, enhanceStyle, autoDetect, storyPromptMode, storyTemplate, storyMode])
 
   // Auto-cerrar sidebar en móvil
   useEffect(() => {
@@ -415,7 +445,108 @@ export default function AIChat({ onBack }) {
     return data
   }
 
+  const buildStoryboardPrompt = (scene) => {
+    if ((scene.promptMode || storyPromptMode) === 'reel') {
+      return (scene.customPrompt || storyTemplate || STORY_REEL_TEMPLATE)
+        .replaceAll('{{narration}}', scene.narration || '')
+        .replaceAll('{{prompt}}', scene.prompt || '')
+        .replaceAll('{{visual_hook}}', scene.visual_hook || '')
+        .replaceAll('{{shot_type}}', scene.shot_type || '')
+        .replaceAll('{{emotion}}', scene.emotion || '')
+    }
+    return scene.customPrompt || scene.prompt
+  }
+
+  const generateStoryboardScene = async (scene, sceneModel = model, sceneApiEndpoint = apiEndpoint) => {
+    const res = await fetch(`${API_BASE_URL}/api/studio/generate-image-v2`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: buildStoryboardPrompt(scene),
+        aspect_ratio: aspectRatio,
+        model: sceneModel,
+        api_endpoint: sceneApiEndpoint,
+        enhance_style: 'none',
+        history: [],
+        enrich: false,
+      }),
+    })
+    const data = await res.json()
+    if (data.error) throw new Error(data.error)
+    return data
+  }
+
   // ─── Storyboard: planificar y generar en cadena ─────────────────
+  const splitScriptLocally = (scriptText, secondsPerScene = 5) => {
+    const clean = (scriptText || '').replace(/\s+/g, ' ').trim()
+    if (!clean) return null
+
+    const words = clean.match(/\b[\wáéíóúÁÉÍÓÚñÑüÜ]+\b/g) || []
+    const wordCount = words.length
+    const totalDuration = Math.max(1, Math.ceil(wordCount / 2.5))
+    const sceneSeconds = Math.max(1, Number(secondsPerScene) || 5)
+    const targetScenes = Math.max(1, Math.ceil(totalDuration / sceneSeconds))
+    const targetWords = Math.max(1, Math.ceil(wordCount / targetScenes))
+
+    const sentences = clean.match(/[^.!?¿¡]+[.!?]*/g)?.map(s => s.trim()).filter(Boolean) || [clean]
+    const scenes = []
+    let buffer = []
+    let bufferWords = 0
+
+    sentences.forEach((sentence, idx) => {
+      const sentenceWords = sentence.match(/\b[\wáéíóúÁÉÍÓÚñÑüÜ]+\b/g)?.length || 0
+      const shouldCut = bufferWords >= targetWords && scenes.length < targetScenes - 1
+      if (shouldCut) {
+        scenes.push(buffer.join(' ').trim())
+        buffer = []
+        bufferWords = 0
+      }
+      buffer.push(sentence)
+      bufferWords += sentenceWords
+      if (idx === sentences.length - 1 && buffer.length) {
+        scenes.push(buffer.join(' ').trim())
+      }
+    })
+
+    while (scenes.length < targetScenes) {
+      const longestIndex = scenes.reduce((best, scene, idx) => (
+        scene.length > scenes[best].length ? idx : best
+      ), 0)
+      const parts = scenes[longestIndex].split(/\s+/)
+      if (parts.length < 2) break
+      const mid = Math.ceil(parts.length / 2)
+      scenes.splice(longestIndex, 1, parts.slice(0, mid).join(' '), parts.slice(mid).join(' '))
+    }
+
+    return {
+      scenes: scenes.map((narration, idx) => ({
+        index: idx + 1,
+        start: Math.round(idx * sceneSeconds),
+        end: Math.round((idx + 1) * sceneSeconds),
+        duration: sceneSeconds,
+        narration,
+        words: narration.match(/\b[\wáéíóúÁÉÍÓÚñÑüÜ]+\b/g)?.length || 0,
+      })),
+      total_scenes: scenes.length,
+      total_duration: totalDuration,
+      words: wordCount,
+      seconds_per_scene: sceneSeconds,
+    }
+  }
+
+  const handleSplitScriptOnly = () => {
+    if (!storyScript.trim()) return
+    setStoryCuts(splitScriptLocally(storyScript, storySecPerImg))
+  }
+
+  const copyScriptCuts = () => {
+    if (!storyCuts?.scenes?.length) return
+    const text = storyCuts.scenes.map(sc => (
+      `Escena ${sc.index} - ${formatTime(sc.start)} a ${formatTime(sc.end)}\n${sc.narration}`
+    )).join('\n\n')
+    navigator.clipboard.writeText(text).catch(() => {})
+  }
+
   const callPlanScript = async () => {
     const res = await fetch(`${API_BASE_URL}/api/studio/plan-script`, {
       method: 'POST',
@@ -439,7 +570,13 @@ export default function AIChat({ onBack }) {
     try {
       const plan = await callPlanScript()
       setStoryPlan(plan)
-      setStoryScenes(plan.scenes.map(s => ({ ...s, status: 'pending' })))
+      setStoryScenes(plan.scenes.map(s => ({
+        ...s,
+        status: 'pending',
+        model,
+        apiEndpoint,
+        customPrompt: '',
+      })))
       setStoryDone(0)
     } catch (e) {
       alert(`Error: ${e.message}`)
@@ -457,26 +594,16 @@ export default function AIChat({ onBack }) {
       updated[i] = { ...updated[i], status: 'loading' }
       setStoryScenes([...updated])
       try {
-        const res = await fetch(`${API_BASE_URL}/api/studio/generate-image-v2`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: updated[i].prompt,
-            aspect_ratio: aspectRatio,
-            model,
-            api_endpoint: apiEndpoint,
-            enhance_style: 'none',
-            history: [],
-            enrich: false, // ya viene enriquecido por el planner
-          }),
-        })
-        const data = await res.json()
-        if (data.error) throw new Error(data.error)
+        const sceneModel = updated[i].model || model
+        const sceneApiEndpoint = updated[i].apiEndpoint || apiEndpoint
+        const data = await generateStoryboardScene(updated[i], sceneModel, sceneApiEndpoint)
         updated[i] = {
           ...updated[i],
           status: 'done',
           imageBase64: data.image_base64,
           mimeType: data.mime_type || 'image/png',
+          modelUsed: data.model_used || sceneModel,
+          apiUsed: data.api_used || sceneApiEndpoint,
         }
       } catch (e) {
         updated[i] = { ...updated[i], status: 'error', error: e.message }
@@ -485,6 +612,34 @@ export default function AIChat({ onBack }) {
       setStoryDone(i + 1)
     }
     setStoryRunning(false)
+  }
+
+  const handleGenerateStoryboardScene = async (idx) => {
+    if (storyRunning || !storyScenes[idx]) return
+    const updated = [...storyScenes]
+    updated[idx] = { ...updated[idx], status: 'loading', error: null }
+    setStoryScenes([...updated])
+    try {
+      const sceneModel = updated[idx].model || model
+      const sceneApiEndpoint = updated[idx].apiEndpoint || apiEndpoint
+      const data = await generateStoryboardScene(updated[idx], sceneModel, sceneApiEndpoint)
+      updated[idx] = {
+        ...updated[idx],
+        status: 'done',
+        imageBase64: data.image_base64,
+        mimeType: data.mime_type || 'image/png',
+        modelUsed: data.model_used || sceneModel,
+        apiUsed: data.api_used || sceneApiEndpoint,
+      }
+    } catch (e) {
+      updated[idx] = { ...updated[idx], status: 'error', error: e.message }
+    }
+    setStoryScenes([...updated])
+    setStoryDone(updated.filter(s => s.status === 'done' || s.status === 'error').length)
+  }
+
+  const updateStoryboardScene = (idx, patch) => {
+    setStoryScenes(prev => prev.map((scene, i) => i === idx ? { ...scene, ...patch } : scene))
   }
 
   const handleDownloadScene = (scene, idx) => {
@@ -499,6 +654,7 @@ export default function AIChat({ onBack }) {
     setStoryPlan(null)
     setStoryScenes([])
     setStoryDone(0)
+    setStoryCuts(null)
   }
 
   const handleRegenerateBible = async () => {
@@ -534,7 +690,13 @@ export default function AIChat({ onBack }) {
       const data = await res.json()
       if (!data.success) throw new Error(data.error || 'Error replanificando')
       setStoryPlan(data)
-      setStoryScenes(data.scenes.map(s => ({ ...s, status: 'pending' })))
+      setStoryScenes(data.scenes.map(s => ({
+        ...s,
+        status: 'pending',
+        model,
+        apiEndpoint,
+        customPrompt: '',
+      })))
       setStoryDone(0)
     } catch (e) {
       alert(`Error: ${e.message}`)
@@ -920,14 +1082,28 @@ export default function AIChat({ onBack }) {
             scenes={storyScenes}
             done={storyDone}
             onPlan={handlePlanScript}
+            onSplitOnly={handleSplitScriptOnly}
+            storyMode={storyMode}
+            setStoryMode={setStoryMode}
+            cuts={storyCuts}
+            onCopyCuts={copyScriptCuts}
             onRun={handleRunStoryboard}
+            onRunScene={handleGenerateStoryboardScene}
+            onUpdateScene={updateStoryboardScene}
             onReset={handleResetStoryboard}
             onRegenBible={handleRegenerateBible}
             onDownload={handleDownloadScene}
             currentModel={model}
             modelLabel={IMAGE_MODELS.find(m => m.id === model)?.name || model}
+            currentApiEndpoint={apiEndpoint}
+            imageModels={IMAGE_MODELS}
+            apiEndpoints={API_ENDPOINTS}
             aspectRatio={aspectRatio}
             enhanceStyle={enhanceStyle}
+            promptMode={storyPromptMode}
+            setPromptMode={setStoryPromptMode}
+            template={storyTemplate}
+            setTemplate={setStoryTemplate}
           />
         )}
       </main>
@@ -939,8 +1115,10 @@ export default function AIChat({ onBack }) {
 function StoryboardPanel({
   onClose, script, setScript, secPerImg, setSecPerImg,
   planning, running, plan, scenes, done,
-  onPlan, onRun, onReset, onRegenBible, onDownload,
-  currentModel, modelLabel, aspectRatio, enhanceStyle,
+  onPlan, onSplitOnly, storyMode, setStoryMode, cuts, onCopyCuts,
+  onRun, onRunScene, onUpdateScene, onReset, onRegenBible, onDownload,
+  currentModel, modelLabel, currentApiEndpoint, imageModels, apiEndpoints, aspectRatio, enhanceStyle,
+  promptMode, setPromptMode, template, setTemplate,
 }) {
   const pricing = plan?.pricing?.[currentModel]
   const totalUsd = pricing ? pricing.total_usd : null
@@ -964,6 +1142,23 @@ function StoryboardPanel({
         </header>
 
         <div className="aichat-storyboard-body">
+          <div className="aichat-storyboard-tabs">
+            <button
+              className={storyMode === 'visual' ? 'active' : ''}
+              onClick={() => setStoryMode('visual')}
+              disabled={running}
+            >
+              Storyboard visual
+            </button>
+            <button
+              className={storyMode === 'split' ? 'active' : ''}
+              onClick={() => setStoryMode('split')}
+              disabled={running}
+            >
+              Solo dividir guion
+            </button>
+          </div>
+
           {!plan && (
             <div className="aichat-storyboard-input">
               <label style={{ fontSize: 12, color: '#a0a4b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -989,14 +1184,40 @@ function StoryboardPanel({
                 <button
                   className="aichat-btn-primary"
                   disabled={!script.trim() || planning}
-                  onClick={onPlan}
+                  onClick={storyMode === 'split' ? onSplitOnly : onPlan}
                 >
-                  {planning ? 'Planificando…' : '🎬 Planificar storyboard'}
+                  {planning ? 'Planificando...' : storyMode === 'split' ? 'Dividir guion' : 'Planificar storyboard'}
                 </button>
               </div>
               <p style={{ fontSize: 12, color: '#7b8095' }}>
                 Estimación: ~150 palabras/min (2.5 palabras/seg). Si tu guion dura 45s con 5s por imagen, generará 9 escenas.
               </p>
+              {storyMode === 'split' && cuts?.scenes?.length > 0 && (
+                <div className="aichat-script-cuts">
+                  <div className="aichat-script-cuts-header">
+                    <div>
+                      <strong>{cuts.total_scenes} escenas</strong>
+                      <span>{cuts.words} palabras ? {cuts.total_duration}s estimados</span>
+                    </div>
+                    <button className="aichat-btn-ghost" onClick={onCopyCuts}>Copiar todo</button>
+                  </div>
+                  {cuts.scenes.map(sc => (
+                    <div key={sc.index} className="aichat-script-cut">
+                      <div className="aichat-script-cut-meta">
+                        <strong>Escena {sc.index}</strong>
+                        <span>{formatTime(sc.start)} - {formatTime(sc.end)} ? {sc.words} palabras</span>
+                      </div>
+                      <p>{sc.narration}</p>
+                      <button
+                        className="aichat-btn-ghost"
+                        onClick={() => navigator.clipboard.writeText(sc.narration).catch(() => {})}
+                      >
+                        Copiar escena
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1082,6 +1303,42 @@ function StoryboardPanel({
                 )}
               </div>
 
+              <div className="aichat-storyboard-mode-card">
+                <div className="aichat-storyboard-mode-row">
+                  <label>
+                    Modo de prompt
+                    <select value={promptMode} onChange={e => setPromptMode(e.target.value)} disabled={running}>
+                      <option value="ai">Prompt cinematografico IA</option>
+                      <option value="reel">Plantilla Reel por narracion</option>
+                    </select>
+                  </label>
+                  <label>
+                    Modelo global
+                    <select value={currentModel} disabled>
+                      <option>{modelLabel}</option>
+                    </select>
+                  </label>
+                  <label>
+                    Endpoint global
+                    <select value={currentApiEndpoint} disabled>
+                      <option>{apiEndpoints.find(a => a.id === currentApiEndpoint)?.label || currentApiEndpoint}</option>
+                    </select>
+                  </label>
+                </div>
+                {promptMode === 'reel' && (
+                  <label className="aichat-story-template">
+                    Plantilla Reel
+                    <textarea
+                      value={template}
+                      onChange={e => setTemplate(e.target.value)}
+                      disabled={running}
+                      rows={4}
+                    />
+                    <span>Variables: {'{{narration}}'}, {'{{prompt}}'}, {'{{visual_hook}}'}, {'{{shot_type}}'}, {'{{emotion}}'}</span>
+                  </label>
+                )}
+              </div>
+
               {running || done > 0 ? (
                 <div className="aichat-progress-bar">
                   <div className="aichat-progress-fill" style={{ width: `${progress}%` }} />
@@ -1144,10 +1401,67 @@ function StoryboardPanel({
                       <summary>Ver prompt visual</summary>
                       <p>{sc.prompt}</p>
                     </details>
-                    {sc.status === 'done' && (
-                      <button className="aichat-btn-ghost" onClick={() => onDownload(sc, i)}>
-                        ⬇ Descargar
+                    <div className="aichat-scene-controls">
+                      <label>
+                        Modelo
+                        <select
+                          value={sc.model || currentModel}
+                          onChange={e => onUpdateScene(i, { model: e.target.value })}
+                          disabled={running || sc.status === 'loading'}
+                        >
+                          {imageModels.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        API
+                        <select
+                          value={sc.apiEndpoint || currentApiEndpoint}
+                          onChange={e => onUpdateScene(i, { apiEndpoint: e.target.value })}
+                          disabled={running || sc.status === 'loading'}
+                        >
+                          {apiEndpoints.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Prompt
+                        <select
+                          value={sc.promptMode || promptMode}
+                          onChange={e => onUpdateScene(i, { promptMode: e.target.value })}
+                          disabled={running || sc.status === 'loading'}
+                        >
+                          <option value="ai">IA</option>
+                          <option value="reel">Plantilla Reel</option>
+                        </select>
+                      </label>
+                    </div>
+                    <details className="aichat-scene-custom">
+                      <summary>Editar prompt de esta escena</summary>
+                      <textarea
+                        value={sc.customPrompt || ''}
+                        onChange={e => onUpdateScene(i, { customPrompt: e.target.value })}
+                        placeholder="Opcional: si escribes aqui, esta escena usara este prompt. Puedes incluir {{narration}}."
+                        disabled={running || sc.status === 'loading'}
+                        rows={4}
+                      />
+                    </details>
+                    <div className="aichat-scene-actions">
+                      <button
+                        className="aichat-btn-primary"
+                        onClick={() => onRunScene(i)}
+                        disabled={running || sc.status === 'loading'}
+                      >
+                        {sc.status === 'done' ? 'Regenerar' : 'Generar'}
                       </button>
+                      {sc.status === 'done' && (
+                        <button className="aichat-btn-ghost" onClick={() => onDownload(sc, i)}>
+                          ⬇ Descargar
+                        </button>
+                      )}
+                    </div>
+                    {(sc.modelUsed || sc.apiUsed) && (
+                      <div className="aichat-scene-used">
+                        {sc.modelUsed || sc.model} · {sc.apiUsed || sc.apiEndpoint}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -1635,6 +1949,35 @@ function Styles() {
       }
       .aichat-storyboard-body { padding: 20px; }
       .aichat-storyboard-input { display: flex; flex-direction: column; gap: 12px; }
+      .aichat-storyboard-tabs {
+        display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+      }
+      .aichat-storyboard-tabs button {
+        background: #0d0e12; color: #a0a4b8; border: 1px solid #262a36;
+        border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 13px;
+      }
+      .aichat-storyboard-tabs button.active {
+        color: #fff; border-color: #6366f1;
+        background: linear-gradient(135deg, rgba(99,102,241,0.22), rgba(219,39,119,0.18));
+      }
+      .aichat-script-cuts {
+        display: flex; flex-direction: column; gap: 10px; margin-top: 4px;
+      }
+      .aichat-script-cuts-header {
+        background: #1a1d28; border: 1px solid #262a36; border-radius: 10px;
+        padding: 10px 12px; display: flex; justify-content: space-between; gap: 10px; align-items: center;
+      }
+      .aichat-script-cuts-header div { display: flex; flex-direction: column; gap: 2px; }
+      .aichat-script-cuts-header span { color: #7b8095; font-size: 12px; }
+      .aichat-script-cut {
+        background: #1a1d28; border: 1px solid #262a36; border-radius: 10px;
+        padding: 12px; display: flex; flex-direction: column; gap: 8px;
+      }
+      .aichat-script-cut-meta {
+        display: flex; justify-content: space-between; gap: 10px; color: #7b8095; font-size: 12px;
+      }
+      .aichat-script-cut-meta strong { color: #e8e9ed; }
+      .aichat-script-cut p { margin: 0; color: #c5c8d4; line-height: 1.45; font-size: 13px; }
       .aichat-textarea-big {
         width: 100%; min-height: 200px; background: #0d0e12;
         border: 1px solid #262a36; border-radius: 10px;
@@ -1696,6 +2039,29 @@ function Styles() {
       .aichat-storyboard-actions {
         display: flex; gap: 12px; align-items: center; margin-bottom: 20px;
       }
+      .aichat-storyboard-mode-card {
+        background: #1a1d28; border: 1px solid #262a36; border-radius: 12px;
+        padding: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;
+      }
+      .aichat-storyboard-mode-row {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;
+      }
+      .aichat-storyboard-mode-card label,
+      .aichat-scene-controls label,
+      .aichat-story-template {
+        display: flex; flex-direction: column; gap: 5px;
+        font-size: 10px; color: #7b8095; text-transform: uppercase; letter-spacing: 0.4px;
+      }
+      .aichat-storyboard-mode-card select,
+      .aichat-scene-controls select,
+      .aichat-story-template textarea,
+      .aichat-scene-custom textarea {
+        background: #0d0e12; border: 1px solid #262a36; border-radius: 8px;
+        color: #e8e9ed; padding: 8px; font-size: 12px; font-family: inherit;
+      }
+      .aichat-story-template textarea,
+      .aichat-scene-custom textarea { resize: vertical; min-height: 78px; line-height: 1.4; }
+      .aichat-story-template span { color: #5a5e72; font-size: 11px; text-transform: none; letter-spacing: 0; }
 
       .aichat-scenes-grid {
         display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1740,6 +2106,21 @@ function Styles() {
       .aichat-scene-prompt p {
         font-size: 11px; color: #a0a4b8; margin: 6px 0 0;
         max-height: 120px; overflow-y: auto; line-height: 1.4;
+      }
+      .aichat-scene-controls {
+        display: grid; grid-template-columns: 1fr; gap: 8px;
+      }
+      .aichat-scene-custom summary {
+        font-size: 11px; color: #7b8095; cursor: pointer; user-select: none;
+      }
+      .aichat-scene-custom textarea { width: 100%; margin-top: 6px; }
+      .aichat-scene-actions {
+        display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      }
+      .aichat-scene-actions .aichat-btn-primary,
+      .aichat-scene-actions .aichat-btn-ghost { flex: 1; min-width: 110px; text-align: center; }
+      .aichat-scene-used {
+        font-size: 10px; color: #5a5e72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .aichat-viral-toggle {
         flex-direction: row !important; align-items: center !important;

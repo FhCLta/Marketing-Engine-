@@ -102,7 +102,7 @@ export default function ImageStudio({ onBack }) {
   const [selectedImageModel, setSelectedImageModel] = useState('nano-banana-pro-preview')
   
   // === API ENDPOINT SELECTION ===
-  const [selectedApiEndpoint, setSelectedApiEndpoint] = useState('auto') // 'auto', 'gemini', 'vertex'
+  const [selectedApiEndpoint, setSelectedApiEndpoint] = useState('auto') // 'auto', 'gemini', 'vertex', 'openai'
   
   // === HTML AD BUILDER STATES (Design Copilot) ===
   const [htmlBuilderImage, setHtmlBuilderImage] = useState(null)
@@ -2460,6 +2460,7 @@ ${aiContextPrompt}`
               <option value="auto">🔄 Auto (usa la primera disponible)</option>
               <option value="gemini">💎 Gemini API (AIza...)</option>
               <option value="vertex">⚡ Vertex AI (AQ...)</option>
+              <option value="openai">OpenAI API (sk-proj...)</option>
             </select>
             <small style={{color: '#888', fontSize: '11px', marginTop: '4px', display: 'block'}}>
               Prueba ambas APIs para comparar calidad

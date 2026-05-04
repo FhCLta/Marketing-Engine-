@@ -11,7 +11,7 @@ import ImageStudio from './pages/ImageStudio'
 import AIChat from './pages/AIChat'
 
 // Utility: Compress image before upload to avoid 413 errors
-const compressImageForUpload = async (file, maxSizeMB = 25, maxDimension = 4000) => {
+const COMPRESS_IMAGE_FOR_UPLOAD = async (file, maxSizeMB = 25, maxDimension = 4000) => {
   return new Promise((resolve) => {
     const img = new Image()
     img.onload = () => {

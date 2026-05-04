@@ -19,6 +19,9 @@ DATABASE_PATH = os.path.join(BASE_DIR, 'assets', 'Database_Proyectos_BMC.json')
 # ═══════════════════════════════════════════════════════════════════
 
 CHAT_MODELS = [
+    {"id": "openai/gpt-5-mini", "name": "GPT-5 mini", "desc": "OpenAI - rapido para chat y copy"},
+    {"id": "openai/gpt-5", "name": "GPT-5", "desc": "OpenAI - maxima calidad"},
+    {"id": "openai/gpt-4.1-mini", "name": "GPT-4.1 mini", "desc": "OpenAI - eficiente"},
     {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "desc": "Rápido y eficiente"},
     {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "desc": "Más preciso y detallado"},
     {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "desc": "Ultra rápido"},
@@ -43,6 +46,11 @@ CHAT_MODELS = [
 ]
 
 IMAGE_MODELS = [
+    # OpenAI GPT Image
+    {"id": "openai/gpt-image-2", "name": "GPT Image 2", "desc": "OpenAI - actual/recomendado + texto", "type": "openai"},
+    {"id": "openai/gpt-image-1.5", "name": "GPT Image 1.5", "desc": "OpenAI - alta calidad + texto", "type": "openai"},
+    {"id": "openai/gpt-image-1", "name": "GPT Image 1", "desc": "OpenAI - texto y edicion precisa", "type": "openai"},
+    {"id": "openai/gpt-image-1-mini", "name": "GPT Image mini", "desc": "OpenAI - rapido/economico", "type": "openai"},
     # Imagen 4 - Última generación (requiere endpoint predict)
     {"id": "imagen-4.0-ultra-generate-001", "name": "Imagen 4 Ultra", "desc": "🏆 MEJOR calidad + texto", "type": "imagen4"},
     {"id": "imagen-4.0-generate-001", "name": "Imagen 4", "desc": "✅ Alta calidad + texto", "type": "imagen4"},
@@ -1228,6 +1236,22 @@ def generate_ai_image(prompt: str, aspect_ratio: str = "1:1", model: str = "nano
             )
         except Exception as _e:
             print(f"⚠️ enrich falló silenciosamente: {_e}")
+
+    # Routing a OpenAI
+    if model.startswith("openai/") or api_endpoint == "openai":
+        if enhance_style == "viral":
+            styled = f"High-impact viral social media visual, cinematic composition, bold contrast.\n\n{prompt}\n\nStyle: Ultra sharp, vibrant, scroll-stopping, professional quality."
+        elif enhance_style == "crypto":
+            styled = f"Futuristic crypto/AI/tech visual, cinematic dark mode aesthetic, neon accents.\n\n{prompt}\n\nStyle: dramatic lighting, high-tech atmosphere, ultra-detailed."
+        elif enhance_style == "real_estate":
+            styled = f"Photorealistic luxury real estate marketing visual in Riviera Maya, Mexico.\n\n{prompt}\n\nStyle: premium architectural photography, aspirational luxury, clean composition for text overlay."
+        else:
+            styled = prompt
+        return generate_image_openai(
+            prompt=styled,
+            aspect_ratio=aspect_ratio,
+            model=model if model.startswith("openai/") else "openai/gpt-image-2",
+        )
 
     # Routing a OpenRouter
     if model.startswith("openrouter/") or api_endpoint == "openrouter":
@@ -2679,6 +2703,155 @@ def generate_image_openrouter(prompt: str, model: str) -> dict:
     }
 
 
+def _strip_openai_prefix(model: str) -> str:
+    return model.replace("openai/", "", 1) if model.startswith("openai/") else model
+
+
+def _openai_size_for_aspect_ratio(aspect_ratio: str) -> str:
+    size_map = {
+        "1:1": "1024x1024",
+        "9:16": "1024x1536",
+        "3:4": "1024x1536",
+        "16:9": "1536x1024",
+        "4:3": "1536x1024",
+    }
+    return size_map.get(aspect_ratio, "1024x1024")
+
+
+def generate_image_openai(prompt: str, aspect_ratio: str = "1:1", model: str = "openai/gpt-image-2") -> dict:
+    """
+    Genera una imagen con OpenAI Image API.
+    """
+    import requests
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"error": "No hay OPENAI_API_KEY configurada"}
+
+    real_model = _strip_openai_prefix(model)
+    payload = {
+        "model": real_model,
+        "prompt": prompt,
+        "size": _openai_size_for_aspect_ratio(aspect_ratio),
+        "n": 1,
+    }
+    if real_model.startswith("gpt-image"):
+        payload["quality"] = "auto"
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/images/generations",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=180,
+        )
+        if response.status_code != 200:
+            return {"error": f"OpenAI error {response.status_code}: {response.text[:500]}"}
+
+        data = response.json()
+        first = (data.get("data") or [{}])[0]
+        image_base64 = first.get("b64_json")
+        if not image_base64:
+            return {"error": "OpenAI no devolvio imagen en base64"}
+
+        return {
+            "image_base64": image_base64,
+            "mime_type": "image/png",
+            "model_used": real_model,
+            "api_used": "OpenAI",
+            "success": True,
+        }
+    except Exception as e:
+        print(f"Error generando imagen con OpenAI: {e}")
+        return {"error": str(e)}
+
+
+def chat_with_openai(
+    message: str,
+    model: str = "openai/gpt-5-mini",
+    history: list = None,
+    image_base64: str = None,
+    system_prompt: str = None,
+) -> dict:
+    """
+    Chat con OpenAI usando Responses API. Soporta texto e imagen adjunta.
+    """
+    import requests
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"error": "No hay OPENAI_API_KEY configurada", "success": False}
+
+    real_model = _strip_openai_prefix(model)
+    input_messages = []
+    if system_prompt:
+        input_messages.append({
+            "role": "system",
+            "content": [{"type": "input_text", "text": system_prompt}],
+        })
+
+    for h in history or []:
+        role = "assistant" if h.get("role") == "assistant" else "user"
+        text = h.get("content") or ""
+        if text:
+            input_messages.append({
+                "role": role,
+                "content": [{"type": "input_text", "text": text}],
+            })
+
+    current_content = [{"type": "input_text", "text": message}]
+    if image_base64:
+        current_content.append({
+            "type": "input_image",
+            "image_url": f"data:image/jpeg;base64,{image_base64}",
+        })
+    input_messages.append({"role": "user", "content": current_content})
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": real_model,
+                "input": input_messages,
+                "temperature": 0.7,
+                "max_output_tokens": 4096,
+            },
+            timeout=120,
+        )
+        if response.status_code != 200:
+            return {"error": f"OpenAI error {response.status_code}: {response.text[:500]}", "success": False}
+
+        data = response.json()
+        text = data.get("output_text") or ""
+        if not text:
+            chunks = []
+            for item in data.get("output", []):
+                for content in item.get("content", []):
+                    if content.get("type") in ("output_text", "text"):
+                        chunks.append(content.get("text", ""))
+            text = "\n".join(chunks).strip()
+
+        if not text:
+            return {"error": "OpenAI no devolvio texto", "success": False}
+
+        return {
+            "response": text,
+            "model_used": real_model,
+            "api_used": "OpenAI",
+            "success": True,
+        }
+    except Exception as e:
+        print(f"Error en chat OpenAI: {e}")
+        return {"error": str(e), "success": False}
+
+
 def chat_with_marketing_ai(
     message: str,
     model: str = "gemini-2.5-flash",
@@ -2704,6 +2877,16 @@ def chat_with_marketing_ai(
         dict con "response" (str), "model_used" (str), o "error" (str)
     """
     import requests
+
+    # Routing a OpenAI si el modelo o endpoint lo indica
+    if model.startswith("openai/") or api_endpoint == "openai":
+        return chat_with_openai(
+            message=message,
+            model=model if model.startswith("openai/") else "openai/gpt-5-mini",
+            history=history,
+            image_base64=image_base64,
+            system_prompt=system_prompt or MARKETING_SYSTEM_PROMPT,
+        )
 
     # Routing a OpenRouter si el modelo lo indica
     if model.startswith("openrouter/") or api_endpoint == "openrouter":

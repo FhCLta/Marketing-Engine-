@@ -361,7 +361,7 @@ class GenerateImageRequest(BaseModel):
     prompt: str
     aspect_ratio: str = "1:1"
     model: str = "nano-banana-pro-preview"
-    api_endpoint: str = "auto"  # 'auto', 'gemini', 'vertex', 'openrouter'
+    api_endpoint: str = "auto"  # 'auto', 'gemini', 'vertex', 'openrouter', 'openai'
     enhance_style: str = "real_estate"  # 'real_estate', 'viral', 'crypto', 'none'
     history: Optional[List[dict]] = None  # contexto de conversación para enriquecer prompt
     enrich: bool = True  # enriquecer prompt con contexto antes de generar
@@ -390,6 +390,10 @@ async def generate_image_v2(request: GenerateImageRequest):
 
 # Precios USD por imagen (estimados a abril 2026)
 IMAGE_MODEL_PRICING = {
+    "openai/gpt-image-2":              0.053,
+    "openai/gpt-image-1.5":            0.034,
+    "openai/gpt-image-1":              0.042,
+    "openai/gpt-image-1-mini":         0.011,
     "imagen-4.0-ultra-generate-001":   0.060,
     "imagen-4.0-generate-001":         0.040,
     "imagen-4.0-fast-generate-001":    0.020,

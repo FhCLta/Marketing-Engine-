@@ -10,13 +10,15 @@
 **Marketing Engine** es una webapp interna de Brisa Maya Capital para producir material publicitario de bienes raíces de lujo (Riviera Maya / Cancún) usando IA generativa.
 
 Funciones principales:
-- Generar imágenes con IA (Imagen 4, Nano Banana).
+- Generar imágenes con IA (OpenAI GPT Image 2/1.5/1, Imagen 4, Nano Banana).
 - Editar imágenes con IA (instrucciones en lenguaje natural).
 - Renderizar anuncios 8K con overlays de texto/branding (Pillow).
 - Generar **copy publicitario** y **posts sociales** en varios tonos.
 - **Design Copilot**: chat con Claude/Gemini que genera y edita HTML/CSS de anuncios.
 - **AI Chat**: chat estilo ChatGPT con generación de imágenes inline + storyboard.
+- **OpenAI integrado**: chat con GPT-5/GPT-4.1 y generación de imágenes con GPT Image 2 / GPT Image 1.5 / GPT Image 1.
 - **🎬 Storyboard automático Guion → Imágenes en cadena**: divide guion narrado en N escenas, genera Visual Bible coherente y produce N imágenes cinematográficas consistentes con costo USD/MXN.
+- **Storyboard V2**: permite generar escenas una por una, regenerar una escena, escoger modelo/API por escena, usar plantilla Reel editable o solo dividir guion sin generar imágenes.
 - Biblioteca de prompts + extracción de prompts/colores desde imágenes.
 - Auth con Google + persistencia en Firestore (proyectos, conversaciones, diseños).
 
@@ -39,6 +41,7 @@ Estado: **Funcional en local** y **desplegado en producción**.
 - **Python 3.12+**, FastAPI, Uvicorn.
 - **Pillow** para composición de anuncios 8K.
 - **google-genai** (Gemini, Imagen 4, Nano Banana).
+- **OpenAI API** (GPT-5 para texto/chat y GPT Image 2/1.5/1 para imágenes).
 - **anthropic** (Claude Sonnet/Opus para Design Copilot).
 - Empaquetado en **Dockerfile** → Google **Cloud Run** (`us-central1`).
 - Carga manual de `.env` al inicio de [main.py](backend/main.py#L9-L16).
@@ -51,6 +54,7 @@ Estado: **Funcional en local** y **desplegado en producción**.
 
 ### Servicios externos
 - Google AI (Gemini 2.5/3/3.1, Imagen 4 ultra/standard/fast, Nano Banana).
+- OpenAI (GPT-5, GPT-4.1, GPT Image 2, GPT Image 1.5, GPT Image 1).
 - Anthropic Claude Sonnet 4 / Opus 4.x.
 - Firebase (`marketing-engine-web`).
 
@@ -136,6 +140,8 @@ Todos en [backend/main.py](backend/main.py). CORS abierto (`allow_origins=["*"]`
 
 ### Modelos (en [ai_copywriter.py](backend/ai_copywriter.py#L21-L40))
 - **Chat**: `gemini-2.5-flash` (default), `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3-flash-preview`, `gemini-3-pro-preview`, `gemini-3.1-flash-lite-preview`, `gemini-3.1-pro-preview`.
+- **Chat OpenAI**: `openai/gpt-5-mini`, `openai/gpt-5`, `openai/gpt-4.1-mini`.
+- **Imagen OpenAI**: `openai/gpt-image-2` (actual/recomendado, requiere organización verificada), `openai/gpt-image-1.5`, `openai/gpt-image-1`, `openai/gpt-image-1-mini`.
 - **Imagen** (con texto): `imagen-4.0-ultra-generate-001`, `imagen-4.0-generate-001`, `imagen-4.0-fast-generate-001`.
 - **Imagen** (sin texto): `nano-banana-pro-preview`, `gemini-3.1-flash-image-preview`, `gemini-2.5-flash-image`.
 - **Design Copilot (Claude)**: Sonnet 4 / Opus 4.5–4.6 (vía Anthropic SDK).
@@ -143,6 +149,7 @@ Todos en [backend/main.py](backend/main.py). CORS abierto (`allow_origins=["*"]`
 ### Diferencia clave
 - **Imagen 4** usa endpoint `:predict` → soporta texto en imagen.
 - **Nano Banana** usa `:generateContent` → NO renderiza texto fiable.
+- **OpenAI** usa `/v1/responses` para chat y `/v1/images/generations` para imágenes. Si `gpt-image-2` devuelve 403, verificar la organización en OpenAI Platform; `gpt-image-1.5` suele funcionar como fallback.
 
 ---
 
@@ -166,7 +173,7 @@ Maneja: auth, conversaciones, galería de diseños guardados, AI learning contex
 ### `pages/AIChat.jsx` (chat estilo ChatGPT + Storyboard)
 - Chat tipo ChatGPT con persistencia en Firestore (vía `conversationsService`).
 - Generación de imágenes inline con enriquecimiento automático del prompt usando contexto de la conversación.
-- Soporta: Gemini (chat), Imagen 4 / Nano Banana / OpenRouter (imagen).
+- Soporta: Gemini/OpenAI/OpenRouter (chat), OpenAI GPT Image / Imagen 4 / Nano Banana / OpenRouter (imagen).
 - Configurable: aspect ratio, estilo (viral / crypto / real_estate / none), modelo, endpoint.
 - Botón **🎬 Storyboard** en topbar abre modal `StoryboardPanel`:
   - Pega guion → infiere `n_scenes = ceil(words/2.5/seconds_per_image)` (español ≈ 2.5 palabras/seg).
@@ -177,6 +184,12 @@ Maneja: auth, conversaciones, galería de diseños guardados, AI learning contex
   - Tabla de costos USD/MXN por modelo (`IMAGE_MODEL_PRICING` en `main.py`, USD→MXN = 17.5).
   - Generación en cadena (serial) con barra de progreso, estados por tarjeta (pending/loading/done/error), descarga individual de cada escena.
   - Cada escena devuelve: `narration`, `duration`, `shot_type`, `emotion`, `visual_hook`, `prompt`.
+  - Storyboard V2:
+    - Selector **Storyboard visual / Solo dividir guion**.
+    - **Solo dividir guion** corta localmente el guion en escenas por segundos sin gastar IA ni generar imágenes.
+    - **Prompt cinematográfico IA / Plantilla Reel**: se puede usar el prompt generado por Gemini o una plantilla editable con variables (`{{narration}}`, `{{prompt}}`, `{{visual_hook}}`, `{{shot_type}}`, `{{emotion}}`).
+    - Cada escena puede sobrescribir `model`, `apiEndpoint`, `promptMode` y `customPrompt`.
+    - Cada tarjeta tiene botón **Generar/Regenerar** individual, además de mantener **Generar todas**.
 
 ### Servicios Firestore
 - `firestoreService.js`: colección `projects`.
@@ -193,8 +206,14 @@ Maneja: auth, conversaciones, galería de diseños guardados, AI learning contex
 GEMINI_API_KEY=AIza...
 VERTEX_API_KEY=AQ.Ab8RN6...
 ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-proj-...
 ```
 En producción se setean en Cloud Run con `gcloud run services update --set-env-vars`.
+
+Notas OpenAI:
+- La API key debe estar solo en `backend/.env`; nunca en frontend.
+- Reiniciar backend después de editar `.env`, porque `main.py` carga variables al iniciar.
+- `gpt-image-2` puede requerir organización verificada en OpenAI Platform. Error típico: `Your organization must be verified to use the model gpt-image-2`.
 
 ### Frontend
 - `frontend/.env` (dev) y `frontend/.env.production`:
@@ -310,6 +329,10 @@ Cada escena: `index, narration, duration, shot_type, emotion, visual_hook, promp
 
 | Modelo | USD/img |
 |---|---|
+| `openai/gpt-image-2` | $0.053 |
+| `openai/gpt-image-1.5` | $0.034 |
+| `openai/gpt-image-1` | $0.042 |
+| `openai/gpt-image-1-mini` | $0.011 |
 | `imagen-4.0-ultra-generate-001` | $0.060 |
 | `imagen-4.0-generate-001` | $0.040 |
 | `imagen-4.0-fast-generate-001` | $0.020 |
@@ -327,6 +350,10 @@ USD→MXN = 17.5 (`USD_TO_MXN` en `main.py`).
 - Botón **🔄 Regenerar dirección visual** → re-planifica sin gastar imágenes ($0.001 vs $0.35 de las imágenes).
 - Tarjetas de escena con: chip 🎥 shot_type, chip 💥 emotion, hook 🪝, prompt completo desplegable, descarga individual.
 - Generación en serie con barra de progreso `done/total`, estados pending/loading/done/error.
+- Cada escena puede generarse o regenerarse de forma individual.
+- Cada escena puede usar un modelo/API distinto (ej. escena 1 con OpenAI GPT Image 1.5, escena 2 con Gemini/Nano Banana, escena 3 con Imagen 4).
+- Modo **Plantilla Reel**: usa una plantilla editable por narración y evita depender del prompt cinematográfico generado automáticamente.
+- Modo **Solo dividir guion**: corta el guion localmente en escenas por tiempo, muestra timestamps aproximados y permite copiar escena o copiar todo.
 
 ### Lógica de partición
 
@@ -343,6 +370,8 @@ n_scenes = ceil(total_seconds / seconds_per_image)
 - `responseMimeType="application/json"` evita los markdown fences ` ```json `, pero se mantiene un strip defensivo por si acaso.
 - Estructura jerárquica fija en el prompt produce imágenes consistentes; estructura libre produce caos visual entre escenas.
 - Pasar la bible idéntica a cada prompt resuelve el problema #1 de los storyboards IA: la inconsistencia visual entre escenas.
+- Para iterar barato, usar primero **Solo dividir guion**, luego **Plantilla Reel** o prompts IA por escena, y generar una escena a la vez.
+- Si hay problemas de encoding/mojibake en `AIChat.jsx`, restaurar desde Git antes de aplicar cambios; no reescribir el archivo completo con PowerShell.
 
 ---
 
@@ -353,8 +382,8 @@ n_scenes = ceil(total_seconds / seconds_per_image)
 - Optimizar carga de imágenes grandes.
 - Mejor manejo de errores de API.
 - Templates predefinidos, historial de versiones, exportar a PNG/PDF, dashboard analytics.
-- **Storyboard**: regenerar escena individual sin tocar las demás · editar prompt manual antes de generar · exportar Bible como JSON · exportar storyboard como ZIP de PNGs · medir y mostrar tiempo real de generación por escena.
+- **Storyboard**: exportar Bible como JSON · exportar storyboard como ZIP de PNGs · medir y mostrar tiempo real de generación por escena · persistir variantes por escena en Firestore.
 
 ---
 
-_Última actualización del contexto: 27 abril 2026 — agregado sistema Storyboard 🎬 (guion → Visual Bible → N imágenes en cadena con costo USD/MXN)._
+_Última actualización del contexto: 4 mayo 2026 — agregado OpenAI/GPT Image 2, Storyboard V2 con generación por escena/modelo por escena, plantilla Reel editable y modo Solo dividir guion._
