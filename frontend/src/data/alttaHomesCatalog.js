@@ -146,15 +146,16 @@ export const ALTTA_HOMES_CATALOG = [
 
 export const ALTTA_LOGO_OPTIONS = [
   { id: 'altta-homes', label: 'Altta Homes', src: '/logos/altta-homes.png' },
-  { id: 'jardines-del-sur-6', label: 'Jardines del Sur 6', src: '/logos/jardines-del-sur-6.svg' },
+  { id: 'jardines-del-sur-6', label: 'Jardines del Sur 6', src: '/logos/jardines-del-sur-6.png' },
   { id: 'la-rioja-residencial-2', label: 'La Rioja Residencial 2', src: '/logos/la-rioja-residencial-2.svg' },
+  { id: 'lirios-residencial-2', label: 'Lirios Residencial 2', src: '/logos/lirios-residencial-2.png' },
 ]
 
 export const ALTTA_DEVELOPMENT_LOGOS = {
   'Altta Homes': 'altta-homes',
   'Jardines del Sur 6': 'jardines-del-sur-6',
   'La Rioja Residencial 2': 'la-rioja-residencial-2',
-  'Lirios Residencial 2': 'altta-homes',
+  'Lirios Residencial 2': 'lirios-residencial-2',
 }
 
 export const getAlttaProductById = (id) => ALTTA_HOMES_CATALOG.find(item => item.id === id)
