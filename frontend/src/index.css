@@ -244,6 +244,12 @@ body {
   display: block;
 }
 
+.altta-design-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .no-image-placeholder {
   display: flex;
   flex-direction: column;
@@ -360,6 +366,35 @@ body {
 .altta-draggable:active {
   cursor: grabbing;
   border-color: rgba(214, 184, 79, 0.95);
+}
+
+.altta-canvas-hitboxes::before {
+  display: none;
+}
+
+.altta-canvas-hitboxes .altta-draggable {
+  color: transparent !important;
+  text-shadow: none !important;
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.altta-canvas-hitboxes .altta-draggable img,
+.altta-canvas-hitboxes .altta-draggable span,
+.altta-canvas-hitboxes .altta-draggable div {
+  opacity: 0;
+}
+
+.altta-canvas-hitboxes .altta-draggable:hover,
+.altta-canvas-hitboxes .altta-draggable.selected {
+  border-color: rgba(214, 184, 79, 0.75);
+  background: transparent !important;
+  box-shadow: 0 0 0 1px rgba(214, 184, 79, 0.25) !important;
 }
 
 .altta-layer-toolbar {
@@ -571,10 +606,12 @@ body {
 }
 
 .altta-price-amount {
-  color: #d6b84f;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 1.03em;
+  color: var(--price-color, #d6b84f);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.06em;
   font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
 }
 
 .altta-preview-specs {

@@ -18,6 +18,22 @@ const ALTTA_CTA_OPTIONS = [
   'Agenda tu cita',
 ]
 
+const ALTTA_PREMIUM_LAYOUT = {
+  logo: { x: 50, y: 14, width: 18 },
+  model: { x: 50, y: 52, width: 46 },
+  headline: { x: 50, y: 62, width: 94 },
+  price: { x: 50, y: 75, width: 58 },
+  cta: { x: 50, y: 86, width: 66 },
+}
+
+const ALTTA_PREMIUM_SIZES = {
+  logo: 1.4,
+  model: 2.25,
+  headline: 5.15,
+  price: 2.34,
+  cta: 1.28,
+}
+
 // Utility: Compress image before upload to avoid 413 errors
 const COMPRESS_IMAGE_FOR_UPLOAD = async (file, maxSizeMB = 25, maxDimension = 4000) => {
   return new Promise((resolve) => {
@@ -90,14 +106,8 @@ function App() {
   const [selectedAlttaLogoId, setSelectedAlttaLogoId] = useState('altta-homes')
   const [alttaCopyVariants, setAlttaCopyVariants] = useState([])
   const [currentAlttaVariantIndex, setCurrentAlttaVariantIndex] = useState(0)
-  const [ctaFontSize, setCtaFontSize] = useState(1.05)
-  const [alttaLayout, setAlttaLayout] = useState({
-    logo: { x: 50, y: 14, width: 18 },
-    model: { x: 50, y: 52, width: 42 },
-    headline: { x: 50, y: 62, width: 86 },
-    price: { x: 50, y: 75, width: 48 },
-    cta: { x: 50, y: 86, width: 72 },
-  })
+  const [ctaFontSize, setCtaFontSize] = useState(1.28)
+  const [alttaLayout, setAlttaLayout] = useState(ALTTA_PREMIUM_LAYOUT)
   const [activeAlttaLayer, setActiveAlttaLayer] = useState(null)
   const [selectedAlttaLayer, setSelectedAlttaLayer] = useState(null)
   const [socialVariants, setSocialVariants] = useState([])
@@ -126,9 +136,9 @@ function App() {
   
   // Font Size Controls (vh units for preview, sent as multiplier to backend)
   const [superFontSize, setSuperFontSize] = useState(1.4)       // Altta logo/brand
-  const [projectFontSize, setProjectFontSize] = useState(1.7)   // Model label
-  const [headlineFontSize, setHeadlineFontSize] = useState(3.65) // Hook phrase
-  const [bodyFontSize, setBodyFontSize] = useState(1.85)         // Price
+  const [projectFontSize, setProjectFontSize] = useState(2.25)   // Model label
+  const [headlineFontSize, setHeadlineFontSize] = useState(5.15) // Hook phrase
+  const [bodyFontSize, setBodyFontSize] = useState(2.34)         // Price
   
   // Granular Color Controls (replaces fixed themes)
   const [accentColor, _setAccentColor] = useState("#d4af37")
@@ -165,6 +175,10 @@ function App() {
 
   const fileInputRef = useRef(null)
   const previewRef = useRef(null)
+  const stageRef = useRef(null)
+  const designCanvasRef = useRef(null)
+  const imageCacheRef = useRef(new Map())
+  const previewRenderIdRef = useRef(0)
 
   const selectedAlttaProduct = getAlttaProductById(selectedAlttaProductId)
   const selectedAlttaLogoOption = getAlttaLogoOptionById(selectedAlttaLogoId)
@@ -259,13 +273,18 @@ function App() {
   }
 
   const resetAlttaLayout = () => {
-    setAlttaLayout({
-      logo: { x: 50, y: 14, width: 18 },
-      model: { x: 50, y: 52, width: 42 },
-      headline: { x: 50, y: 62, width: 86 },
-      price: { x: 50, y: 75, width: 48 },
-      cta: { x: 50, y: 86, width: 72 },
-    })
+    setAlttaLayout(ALTTA_PREMIUM_LAYOUT)
+    clearRenderedImage()
+  }
+
+  const applyAlttaPremiumStyle = () => {
+    setAlttaLayout(ALTTA_PREMIUM_LAYOUT)
+    setSuperFontSize(ALTTA_PREMIUM_SIZES.logo)
+    setProjectFontSize(ALTTA_PREMIUM_SIZES.model)
+    setHeadlineFontSize(ALTTA_PREMIUM_SIZES.headline)
+    setBodyFontSize(ALTTA_PREMIUM_SIZES.price)
+    setCtaFontSize(ALTTA_PREMIUM_SIZES.cta)
+    setLayout('center')
     clearRenderedImage()
   }
 
@@ -345,7 +364,7 @@ function App() {
       price: {
         label: 'Precio',
         text: alttaPrice,
-        setText: (value) => setAlttaPrice(normalizeAlttaPrice(value)),
+        setText: setAlttaPrice,
         color: accentColor,
         setColor: setAccentColor,
         size: bodyFontSize,
@@ -464,22 +483,21 @@ function App() {
   const getStageClassName = () => `altta-stage altta-stage-${aspectRatio.replace(':', 'x')}`
 
   const loadExportImage = (src) => new Promise((resolve, reject) => {
+    if (imageCacheRef.current.has(src)) {
+      resolve(imageCacheRef.current.get(src))
+      return
+    }
     const img = new Image()
-    img.onload = () => resolve(img)
+    img.onload = () => {
+      imageCacheRef.current.set(src, img)
+      resolve(img)
+    }
     img.onerror = reject
+    img.crossOrigin = 'anonymous'
     img.src = src
   })
 
-  const drawImageCover = (ctx, img, x, y, width, height) => {
-    const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight)
-    const sourceW = width / scale
-    const sourceH = height / scale
-    const sourceX = (img.naturalWidth - sourceW) / 2
-    const sourceY = (img.naturalHeight - sourceH) / 2
-    ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, x, y, width, height)
-  }
-
-  const drawRoundRect = (ctx, x, y, w, h, r) => {
+  const roundedRectPath = (ctx, x, y, w, h, r) => {
     const radius = Math.min(r, w / 2, h / 2)
     ctx.beginPath()
     ctx.moveTo(x + radius, y)
@@ -490,35 +508,38 @@ function App() {
     ctx.closePath()
   }
 
-  const drawCanvasScrim = (ctx, width, height) => {
-    const radial = ctx.createRadialGradient(width * 0.5, height * 0.58, 0, width * 0.5, height * 0.58, Math.min(width, height) * 0.62)
-    radial.addColorStop(0, 'rgba(2,8,14,0.22)')
-    radial.addColorStop(0.55, 'rgba(2,8,14,0.12)')
-    radial.addColorStop(1, 'rgba(2,8,14,0)')
-    ctx.fillStyle = radial
-    ctx.fillRect(0, 0, width, height)
-
-    const linear = ctx.createLinearGradient(0, 0, 0, height)
-    linear.addColorStop(0, 'rgba(2,8,14,0)')
-    linear.addColorStop(0.48, 'rgba(2,8,14,0.14)')
-    linear.addColorStop(1, 'rgba(2,8,14,0.46)')
-    ctx.fillStyle = linear
-    ctx.fillRect(0, 0, width, height)
+  const coverImageOnCanvas = (ctx, img, x, y, width, height) => {
+    const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight)
+    const sourceW = width / scale
+    const sourceH = height / scale
+    const sourceX = (img.naturalWidth - sourceW) / 2
+    const sourceY = (img.naturalHeight - sourceH) / 2
+    ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, x, y, width, height)
   }
 
-  const getCanvasFont = (element, scaleY) => {
-    const style = window.getComputedStyle(element)
-    const weight = style.fontWeight || '700'
-    const size = Math.max(1, parseFloat(style.fontSize || '16') * scaleY)
-    const family = style.fontFamily || 'Inter, Arial, sans-serif'
-    return { style, size, lineHeight: parseFloat(style.lineHeight) * scaleY || size * 1.1, font: `${weight} ${size}px ${family}` }
+  const getPreviewCanvasDimensions = () => {
+    const sizes = {
+      '1:1': [1440, 1440],
+      '9:16': [1080, 1920],
+      '16:9': [1920, 1080],
+    }
+    return sizes[aspectRatio] || sizes['1:1']
   }
 
-  const wrapCanvasText = (ctx, text, maxWidth) => {
-    const sourceLines = String(text || '').split('\n')
+  const measureTextBox = (ctx, text, font) => {
+    ctx.save()
+    ctx.font = font
+    const metrics = ctx.measureText(text)
+    ctx.restore()
+    return metrics.width
+  }
+
+  const wrapDesignText = (ctx, text, font, maxWidth) => {
+    ctx.save()
+    ctx.font = font
     const lines = []
-    sourceLines.forEach(sourceLine => {
-      const words = sourceLine.split(' ')
+    String(text || '').split('\n').forEach(sourceLine => {
+      const words = sourceLine.trim().split(/\s+/).filter(Boolean)
       let current = ''
       words.forEach(word => {
         const test = `${current} ${word}`.trim()
@@ -531,151 +552,149 @@ function App() {
       })
       if (current) lines.push(current)
     })
+    ctx.restore()
     return lines
   }
 
-  const drawTextShadow = (ctx, drawFn, strong = false) => {
-    ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.58)'
-    ctx.shadowBlur = strong ? 34 : 18
-    ctx.shadowOffsetY = strong ? 10 : 5
-    drawFn()
-    ctx.restore()
-    ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.55)'
-    ctx.shadowBlur = strong ? 5 : 3
-    ctx.shadowOffsetY = 2
-    drawFn()
-    ctx.restore()
-    drawFn()
-  }
-
-  const drawDomTextLayer = (ctx, selector, text, canvasRect, scaleX, scaleY, options = {}) => {
-    const element = previewRef.current?.querySelector(selector)
-    if (!element || !text) return
-    const rect = element.getBoundingClientRect()
-    const x = (rect.left - canvasRect.left) * scaleX
-    const y = (rect.top - canvasRect.top) * scaleY
-    const w = rect.width * scaleX
-    const h = rect.height * scaleY
-    const cx = x + w / 2
-    const cy = y + h / 2
-    const { style, size, lineHeight, font } = getCanvasFont(element, scaleY)
-    const color = options.color || style.color || '#fff'
-
+  const drawDesignText = (ctx, text, x, y, font, color, options = {}) => {
     ctx.save()
     ctx.font = font
-    ctx.textAlign = 'center'
+    ctx.textAlign = options.align || 'center'
     ctx.textBaseline = 'middle'
+    ctx.shadowColor = options.shadowColor || 'rgba(0,0,0,0.58)'
+    ctx.shadowBlur = options.strong ? 18 : 8
+    ctx.shadowOffsetY = options.strong ? 5 : 2
+    ctx.fillStyle = color
+    ctx.fillText(text, x, y)
+    ctx.restore()
+  }
 
-    if (options.support) {
-      const padX = Math.max(20, size * 0.72)
-      const padY = Math.max(10, size * 0.34)
+  const renderAlttaDesign = async (canvas, width, height) => {
+    if (!imageSrc) return
+    const bg = await loadExportImage(imageSrc)
+    const logo = selectedAlttaLogoUrl ? await loadExportImage(selectedAlttaLogoUrl) : null
+
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, width, height)
+    coverImageOnCanvas(ctx, bg, 0, 0, width, height)
+
+    const radial = ctx.createRadialGradient(width * 0.5, height * 0.58, 0, width * 0.5, height * 0.58, Math.min(width, height) * 0.62)
+    radial.addColorStop(0, 'rgba(2,8,14,0.22)')
+    radial.addColorStop(0.55, 'rgba(2,8,14,0.12)')
+    radial.addColorStop(1, 'rgba(2,8,14,0)')
+    ctx.fillStyle = radial
+    ctx.fillRect(0, 0, width, height)
+    const linear = ctx.createLinearGradient(0, 0, 0, height)
+    linear.addColorStop(0, 'rgba(2,8,14,0)')
+    linear.addColorStop(0.48, 'rgba(2,8,14,0.14)')
+    linear.addColorStop(1, 'rgba(2,8,14,0.46)')
+    ctx.fillStyle = linear
+    ctx.fillRect(0, 0, width, height)
+
+    const layerPoint = (key) => ({
+      x: width * (alttaLayout[key].x / 100),
+      y: height * (alttaLayout[key].y / 100),
+      w: width * (alttaLayout[key].width / 100),
+    })
+    const drawPillBox = (cx, cy, boxW, boxH, fill, stroke) => {
       ctx.save()
-      drawRoundRect(ctx, x - padX * 0.08, y - padY * 0.08, w + padX * 0.16, h + padY * 0.16, h)
-      ctx.fillStyle = options.supportFill || 'rgba(3,12,22,0.38)'
+      roundedRectPath(ctx, cx - boxW / 2, cy - boxH / 2, boxW, boxH, boxH / 2)
+      ctx.fillStyle = fill
       ctx.fill()
-      ctx.strokeStyle = 'rgba(214,184,79,0.24)'
-      ctx.lineWidth = Math.max(1, scaleY)
+      ctx.strokeStyle = stroke
+      ctx.lineWidth = Math.max(1, height * 0.0012)
       ctx.stroke()
       ctx.restore()
     }
 
-    if (options.cta) {
-      const label = alttaCta
-      const phone = alttaPhone
-      const gap = size * 0.7
-      const labelW = ctx.measureText(label).width
-      const phoneW = ctx.measureText(phone).width
-      const sepX = cx - (labelW + phoneW + gap) / 2 + labelW + gap / 2
-      drawTextShadow(ctx, () => {
-        ctx.fillStyle = '#fff'
-        ctx.fillText(label, cx - (phoneW + gap) / 2, cy)
-        ctx.fillStyle = accentColor
-        ctx.fillText(phone, cx + (labelW + gap) / 2, cy)
-      })
-      ctx.strokeStyle = 'rgba(214,184,79,0.45)'
-      ctx.lineWidth = Math.max(1, scaleY)
-      ctx.beginPath()
-      ctx.moveTo(sepX, cy - size * 0.46)
-      ctx.lineTo(sepX, cy + size * 0.46)
-      ctx.stroke()
+    if (logo) {
+      const p = layerPoint('logo')
+      const logoW = p.w
+      const logoH = logoW * (logo.naturalHeight / logo.naturalWidth)
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'
+      ctx.shadowBlur = Math.max(8, logoH * 0.22)
+      ctx.shadowOffsetY = Math.max(2, logoH * 0.08)
+      ctx.drawImage(logo, p.x - logoW / 2, p.y - logoH / 2, logoW, logoH)
       ctx.restore()
-      return
     }
 
-    const lines = wrapCanvasText(ctx, text, Math.max(1, w))
-    const startY = cy - ((lines.length - 1) * lineHeight) / 2
-    drawTextShadow(ctx, () => {
-      ctx.fillStyle = color
-      lines.forEach((line, index) => {
-        ctx.fillText(line, cx, startY + index * lineHeight)
-      })
-    }, options.strongShadow)
-    ctx.restore()
-  }
+    const model = layerPoint('model')
+    const modelFontSize = height * (projectFontSize / 100)
+    const modelFont = `800 ${modelFontSize}px Inter, Arial, sans-serif`
+    const modelText = `Modelo ${alttaModel}`
+    const modelTextW = measureTextBox(ctx, modelText, modelFont)
+    const modelBoxW = Math.min(model.w, modelTextW + modelFontSize * 1.9)
+    const modelBoxH = modelFontSize * 2.15
+    drawPillBox(model.x, model.y, modelBoxW, modelBoxH, 'rgba(3,12,22,0.34)', 'rgba(214,184,79,0.22)')
+    drawDesignText(ctx, modelText, model.x, model.y, modelFont, projectColor)
 
-  const drawDomImageLayer = async (ctx, selector, src, canvasRect, scaleX, scaleY) => {
-    const element = previewRef.current?.querySelector(selector)
-    if (!element || !src) return
-    const rect = element.getBoundingClientRect()
-    const x = (rect.left - canvasRect.left) * scaleX
-    const y = (rect.top - canvasRect.top) * scaleY
-    const w = rect.width * scaleX
-    const h = rect.height * scaleY
-    const img = await loadExportImage(src)
+    const headline = layerPoint('headline')
+    const headlineFontSizePx = height * (headlineFontSize / 100)
+    const headlineFont = `700 ${headlineFontSizePx}px Georgia, 'Times New Roman', serif`
+    const headlineLines = wrapDesignText(ctx, mainHeadline, headlineFont, headline.w)
+    const headlineLineHeight = headlineFontSizePx * 1.05
+    const headlineStartY = headline.y - ((headlineLines.length - 1) * headlineLineHeight) / 2
+    headlineLines.forEach((line, index) => {
+      drawDesignText(ctx, line, headline.x, headlineStartY + index * headlineLineHeight, headlineFont, textColor, { strong: true })
+    })
 
+    const price = layerPoint('price')
+    const priceParts = getAlttaPriceParts(alttaPrice)
+    const pricePrefixSize = height * (bodyFontSize / 100) * 0.82
+    const priceAmountSize = height * (bodyFontSize / 100) * 1.0
+    const pricePrefixFont = `800 ${pricePrefixSize}px Inter, Arial, sans-serif`
+    const priceAmountFont = `800 ${priceAmountSize}px Inter, Arial, sans-serif`
+    const prefixW = priceParts.prefix ? measureTextBox(ctx, priceParts.prefix, pricePrefixFont) : 0
+    const amountW = measureTextBox(ctx, priceParts.amount, priceAmountFont)
+    const priceGap = priceAmountSize * 0.34
+    const priceTextW = prefixW + (priceParts.prefix ? priceGap : 0) + amountW
+    const priceBoxW = Math.min(price.w, priceTextW + priceAmountSize * 1.75)
+    const priceBoxH = priceAmountSize * 1.9
+    drawPillBox(price.x, price.y, priceBoxW, priceBoxH, 'rgba(3,12,22,0.62)', 'rgba(214,184,79,0.46)')
+    const priceStartX = price.x - priceTextW / 2
+    if (priceParts.prefix) {
+      drawDesignText(ctx, priceParts.prefix, priceStartX + prefixW / 2, price.y, pricePrefixFont, '#fff7db')
+    }
+    drawDesignText(ctx, priceParts.amount, priceStartX + prefixW + (priceParts.prefix ? priceGap : 0) + amountW / 2, price.y, priceAmountFont, accentColor)
+
+    const cta = layerPoint('cta')
+    const ctaFontSizePx = height * (ctaFontSize / 100)
+    const ctaFont = `800 ${ctaFontSizePx}px Inter, Arial, sans-serif`
+    const phoneFont = `900 ${ctaFontSizePx}px Inter, Arial, sans-serif`
+    const labelW = measureTextBox(ctx, alttaCta, ctaFont)
+    const phoneW = measureTextBox(ctx, alttaPhone, phoneFont)
+    const ctaGap = ctaFontSizePx * 0.75
+    const ctaTextW = labelW + ctaGap + phoneW
+    const ctaBoxW = Math.min(cta.w, ctaTextW + ctaFontSizePx * 1.6)
+    const ctaBoxH = ctaFontSizePx * 2.0
+    drawPillBox(cta.x, cta.y, ctaBoxW, ctaBoxH, 'rgba(3,12,22,0.58)', 'rgba(214,184,79,0.24)')
+    const ctaStartX = cta.x - ctaTextW / 2
+    drawDesignText(ctx, alttaCta, ctaStartX + labelW / 2, cta.y, ctaFont, bodyColor)
+    const sepX = ctaStartX + labelW + ctaGap / 2
     ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'
-    ctx.shadowBlur = Math.max(8, h * 0.22)
-    ctx.shadowOffsetY = Math.max(2, h * 0.08)
-    ctx.drawImage(img, x, y, w, h)
-    ctx.restore()
-  }
-
-  const drawDomPriceLayer = (ctx, selector, canvasRect, scaleX, scaleY) => {
-    const element = previewRef.current?.querySelector(selector)
-    const prefixEl = element?.querySelector('.altta-price-prefix')
-    const amountEl = element?.querySelector('.altta-price-amount')
-    if (!element || !amountEl) return
-
-    const rect = element.getBoundingClientRect()
-    const x = (rect.left - canvasRect.left) * scaleX
-    const y = (rect.top - canvasRect.top) * scaleY
-    const w = rect.width * scaleX
-    const h = rect.height * scaleY
-    const radius = h / 2
-
-    ctx.save()
-    drawRoundRect(ctx, x, y, w, h, radius)
-    ctx.fillStyle = 'rgba(3,12,22,0.62)'
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(214,184,79,0.46)'
-    ctx.lineWidth = Math.max(1, scaleY * 1.2)
+    ctx.strokeStyle = 'rgba(214,184,79,0.45)'
+    ctx.lineWidth = Math.max(1, height * 0.001)
+    ctx.beginPath()
+    ctx.moveTo(sepX, cta.y - ctaFontSizePx * 0.5)
+    ctx.lineTo(sepX, cta.y + ctaFontSizePx * 0.5)
     ctx.stroke()
     ctx.restore()
-
-    const drawSpan = (span, color) => {
-      const spanRect = span.getBoundingClientRect()
-      const sx = (spanRect.left - canvasRect.left) * scaleX
-      const sy = (spanRect.top - canvasRect.top) * scaleY
-      const sw = spanRect.width * scaleX
-      const sh = spanRect.height * scaleY
-      const { font } = getCanvasFont(span, scaleY)
-      ctx.save()
-      ctx.font = font
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      drawTextShadow(ctx, () => {
-        ctx.fillStyle = color
-        ctx.fillText(span.textContent, sx + sw / 2, sy + sh / 2)
-      })
-      ctx.restore()
-    }
-
-    if (prefixEl) drawSpan(prefixEl, '#fff7db')
-    drawSpan(amountEl, accentColor)
+    drawDesignText(ctx, alttaPhone, ctaStartX + labelW + ctaGap + phoneW / 2, cta.y, phoneFont, accentColor)
   }
+
+  const canvasToBlob = (canvas, mime, quality) => new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob)
+        else reject(new Error('No se pudo generar la imagen final.'))
+      }, mime, quality)
+    } catch (error) {
+      reject(error)
+    }
+  })
 
   const exportCurrentDesign = async ({ download = true } = {}) => {
     if (!imageSrc || !previewRef.current) {
@@ -685,29 +704,11 @@ function App() {
 
     const [targetW, targetH] = getExportDimensions()
     const canvas = document.createElement('canvas')
-    canvas.width = targetW
-    canvas.height = targetH
-    const ctx = canvas.getContext('2d')
-    const overlayRect = previewRef.current.getBoundingClientRect()
-    const scaleX = targetW / overlayRect.width
-    const scaleY = targetH / overlayRect.height
-
-    const img = await loadExportImage(imageSrc)
-    ctx.clearRect(0, 0, targetW, targetH)
-    ctx.fillStyle = '#05080f'
-    ctx.fillRect(0, 0, targetW, targetH)
-    drawImageCover(ctx, img, 0, 0, targetW, targetH)
-    drawCanvasScrim(ctx, targetW, targetH)
-
-    await drawDomImageLayer(ctx, '.altta-preview-brand-logo', selectedAlttaLogoUrl, overlayRect, scaleX, scaleY)
-    drawDomTextLayer(ctx, '.altta-preview-model', `Modelo ${alttaModel}`, overlayRect, scaleX, scaleY, { color: projectColor, support: true, supportFill: 'rgba(3,12,22,0.34)' })
-    drawDomTextLayer(ctx, '.altta-preview-headline', mainHeadline, overlayRect, scaleX, scaleY, { color: textColor, strongShadow: true })
-    drawDomPriceLayer(ctx, '.altta-preview-price', overlayRect, scaleX, scaleY)
-    drawDomTextLayer(ctx, '.altta-preview-bottom', `${alttaCta} ${alttaPhone}`, overlayRect, scaleX, scaleY, { color: bodyColor, support: true, supportFill: 'rgba(3,12,22,0.52)', cta: true })
 
     const mime = outputFormat === 'png' ? 'image/png' : 'image/jpeg'
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, outputFormat === 'png' ? undefined : 0.98))
-    if (!blob) throw new Error('No se pudo generar la imagen final.')
+    const quality = outputFormat === 'png' ? undefined : 0.98
+    await renderAlttaDesign(canvas, targetW, targetH)
+    const blob = await canvasToBlob(canvas, mime, quality)
 
     const url = URL.createObjectURL(blob)
     if (download) {
@@ -723,6 +724,53 @@ function App() {
     }
     return url
   }
+
+  useEffect(() => {
+    let cancelled = false
+    const renderId = previewRenderIdRef.current + 1
+    previewRenderIdRef.current = renderId
+    const renderPreview = async () => {
+      if (!imageSrc || !designCanvasRef.current) return
+      const [previewW, previewH] = getPreviewCanvasDimensions()
+      try {
+        const offscreen = document.createElement('canvas')
+        await renderAlttaDesign(offscreen, previewW, previewH)
+        if (cancelled || previewRenderIdRef.current !== renderId || !designCanvasRef.current) return
+        const visible = designCanvasRef.current
+        visible.width = previewW
+        visible.height = previewH
+        const visibleCtx = visible.getContext('2d')
+        visibleCtx.clearRect(0, 0, previewW, previewH)
+        visibleCtx.drawImage(offscreen, 0, 0)
+      } catch (error) {
+        if (!cancelled) console.error('No se pudo renderizar el canvas de Altta', error)
+      }
+    }
+    renderPreview()
+    return () => {
+      cancelled = true
+    }
+    // renderAlttaDesign intentionally reads the same design state listed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    imageSrc,
+    selectedAlttaLogoUrl,
+    aspectRatio,
+    alttaLayout,
+    alttaModel,
+    mainHeadline,
+    alttaPrice,
+    alttaCta,
+    alttaPhone,
+    projectFontSize,
+    headlineFontSize,
+    bodyFontSize,
+    ctaFontSize,
+    projectColor,
+    textColor,
+    accentColor,
+    bodyColor,
+  ])
 
   // ═══════════════════════════════════════════════════════════════════
   // FIREBASE: Load projects on mount
@@ -807,6 +855,7 @@ function App() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0]
     if (file) {
+      imageCacheRef.current.clear()
       setImageFile(file)
       // Extract project name from filename if possible
       const nameWithoutExt = file.name.split('.').slice(0, -1).join('.')
@@ -872,6 +921,7 @@ function App() {
       const data = await resp.json()
       
       if (data.success && data.image_base64) {
+        imageCacheRef.current.clear()
         // Convertir base64 a blob y crear URL
         const byteCharacters = atob(data.image_base64)
         const byteNumbers = new Array(byteCharacters.length)
@@ -1286,7 +1336,7 @@ function App() {
           <input
             className="form-input"
             value={alttaPrice}
-            onChange={(e) => { setAlttaPrice(normalizeAlttaPrice(e.target.value)); clearRenderedImage() }}
+            onChange={(e) => { setAlttaPrice(e.target.value); clearRenderedImage() }}
             placeholder="Desde $0 MXN"
             style={{ marginBottom: '8px' }}
           />
@@ -1553,7 +1603,7 @@ function App() {
               <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Modelo</span>
               <input 
                 type="range" 
-                min="0.9" max="3" step="0.1"
+                min="0.9" max="4" step="0.1"
                 value={projectFontSize}
                 onChange={(e) => updateLayerSize(setProjectFontSize, parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
@@ -1650,6 +1700,13 @@ function App() {
             onClick={resetAlttaLayout}
           >
             Resetear posiciones
+          </button>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: '8px', padding: '8px' }}
+            onClick={applyAlttaPremiumStyle}
+          >
+            Aplicar estilo premium
           </button>
         </div>
 
@@ -1752,8 +1809,8 @@ function App() {
             <img src={renderedImage} alt="Real Preview" className="image-preview" />
           ) : imageSrc ? (
             <>
-              <div className={getStageClassName()} style={{ '--stage-ratio': getStageAspectRatio() }}>
-              <img src={imageSrc} alt="Preview" className="image-preview altta-stage-image" />
+              <div ref={stageRef} className={getStageClassName()} style={{ '--stage-ratio': getStageAspectRatio() }}>
+              <canvas ref={designCanvasRef} className="altta-design-canvas" aria-label="Vista previa del anuncio" />
               <div className={`layout-preview-overlay align-${layout}`} style={{ display: 'none' }}>
                 <div style={{
                   width: '100%', 
@@ -1839,7 +1896,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              <div ref={previewRef} className={`altta-preview-overlay altta-align-${layout}`}>
+              <div ref={previewRef} className={`altta-preview-overlay altta-canvas-hitboxes altta-align-${layout}`}>
                 {activeLayerPosition && (
                   <>
                     <div className={`altta-center-guide vertical ${Math.abs(activeLayerPosition.x - 50) <= 1.2 ? 'active' : ''}`} />
@@ -1876,7 +1933,7 @@ function App() {
                 <div
                   className={`altta-draggable altta-preview-price ${selectedAlttaLayer === 'price' ? 'selected' : ''}`}
                   onPointerDown={(e) => startAlttaDrag('price', e)}
-                  style={alttaLayerStyle('price', { color: accentColor, fontSize: `${bodyFontSize}vh` })}
+                  style={alttaLayerStyle('price', { color: accentColor, '--price-color': accentColor, fontSize: `${bodyFontSize}vh` })}
                 >
                   <span className="altta-price-prefix">{getAlttaPriceParts(alttaPrice).prefix}</span>
                   <span className="altta-price-amount">{getAlttaPriceParts(alttaPrice).amount}</span>
