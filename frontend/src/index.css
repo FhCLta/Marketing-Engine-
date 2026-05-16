@@ -214,6 +214,36 @@ body {
   transition: opacity 0.3s ease;
 }
 
+.altta-stage {
+  position: relative;
+  aspect-ratio: var(--stage-ratio, 1 / 1);
+  overflow: hidden;
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+}
+
+.altta-stage-1x1 {
+  width: min(100%, 76vh);
+}
+
+.altta-stage-9x16 {
+  height: min(100%, 76vh);
+}
+
+.altta-stage-16x9 {
+  width: min(100%, 120vh);
+}
+
+.altta-stage-image {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  display: block;
+}
+
 .no-image-placeholder {
   display: flex;
   flex-direction: column;
@@ -289,10 +319,22 @@ body {
   background: transparent;
 }
 
+.altta-preview-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(2, 8, 14, 0.22) 0%, rgba(2, 8, 14, 0.14) 34%, rgba(2, 8, 14, 0) 62%),
+    linear-gradient(180deg, rgba(2, 8, 14, 0) 0%, rgba(2, 8, 14, 0.14) 48%, rgba(2, 8, 14, 0.46) 100%);
+}
+
 .altta-draggable {
   position: absolute;
-  display: inline-block;
+  display: block;
   box-sizing: border-box;
+  z-index: 10;
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -347,7 +389,7 @@ body {
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -428,9 +470,18 @@ body {
 }
 
 .altta-preview-brand {
+  padding: 0;
   color: #d6b84f;
   font-weight: 600;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.85), 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.altta-preview-brand-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.55));
+  pointer-events: none;
 }
 
 .altta-preview-development {
@@ -472,25 +523,58 @@ body {
 }
 
 .altta-preview-model {
+  display: inline-block;
   color: #d6b84f;
   font-weight: 800;
-  font-size: 1.35vh;
+  font-size: 1.55vh;
   margin-bottom: 3.1vh;
+  padding: 0.5em 0.95em;
+  background: rgba(3, 12, 22, 0.34);
+  border: 1px solid rgba(214, 184, 79, 0.22);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+  backdrop-filter: blur(4px);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.58);
 }
 
 .altta-preview-headline {
+  padding: 0;
   font-family: 'Playfair Display', serif;
-  line-height: 1.08;
+  line-height: 1.02;
   font-weight: 700;
   margin-bottom: 3.2vh;
-  text-shadow: 0 3px 18px rgba(0,0,0,0.72);
+  text-shadow: 0 2px 2px rgba(0,0,0,0.55), 0 8px 24px rgba(0,0,0,0.64), 0 18px 46px rgba(0,0,0,0.46);
 }
 
 .altta-preview-price {
-  font-family: 'Playfair Display', serif;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.34em;
+  font-family: 'Inter', sans-serif;
   color: #d6b84f;
-  font-weight: 700;
-  text-shadow: 0 3px 18px rgba(0,0,0,0.72);
+  font-weight: 800;
+  padding: 0.38em 0.86em 0.42em;
+  background: linear-gradient(135deg, rgba(3, 12, 22, 0.74), rgba(3, 12, 22, 0.48));
+  border: 1px solid rgba(214, 184, 79, 0.46);
+  border-radius: 999px;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.10);
+  backdrop-filter: blur(4px);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.74);
+  white-space: nowrap;
+}
+
+.altta-price-prefix {
+  color: #fff7db;
+  font-size: 0.86em;
+  font-weight: 750;
+}
+
+.altta-price-amount {
+  color: #d6b84f;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.03em;
+  font-weight: 800;
 }
 
 .altta-preview-specs {
@@ -501,12 +585,39 @@ body {
 
 .altta-preview-bottom {
   justify-content: center;
-  color: rgba(255,255,255,0.75);
+  color: #fff;
   font-size: 1.15vh;
-  gap: 2vh;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
-  display: flex;
+  gap: 0.55em;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.82), 0 10px 24px rgba(0,0,0,0.45);
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
+  padding: 0.42em 0.75em;
+  background: linear-gradient(135deg, rgba(3, 12, 22, 0.66), rgba(3, 12, 22, 0.36));
+  border: 1px solid rgba(214, 184, 79, 0.24);
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.24);
+  backdrop-filter: blur(4px);
+}
+
+.altta-cta-label {
+  font-weight: 800;
+}
+
+.altta-cta-phone {
+  color: #d6b84f;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.altta-cta-phone::before {
+  content: "";
+  display: inline-block;
+  width: 1px;
+  height: 0.9em;
+  margin: 0 0.65em 0 0.1em;
+  vertical-align: -0.12em;
+  background: rgba(214, 184, 79, 0.45);
 }
 
 .altta-align-left .altta-preview-top,
@@ -547,6 +658,55 @@ body {
 
 .altta-align-center .altta-draggable {
   text-align: center;
+}
+
+@media (max-width: 900px) {
+  .app-container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 48vh;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .canvas-area {
+    min-height: 52vh;
+    padding: 14px;
+  }
+
+  .canvas-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .altta-fixed-toolbar {
+    top: 10px;
+    max-width: calc(100% - 20px);
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .altta-layer-text {
+    width: 160px;
+    max-width: 40vw;
+  }
+
+  .altta-stage-1x1,
+  .altta-stage-16x9 {
+    width: min(100%, 92vw);
+  }
+
+  .altta-stage-9x16 {
+    height: min(100%, 58vh);
+  }
 }
 
 /* Loader overlay */

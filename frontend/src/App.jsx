@@ -5,11 +5,18 @@ import './index.css'
 // Firebase Imports
 import { getProjects, seedInitialProjects, addProject } from './services/firestoreService'
 import { INITIAL_PROJECTS } from './data/initialProjects'
-import { ALTTA_HOMES_CATALOG, getAlttaProductById } from './data/alttaHomesCatalog'
+import { ALTTA_HOMES_CATALOG, ALTTA_LOGO_OPTIONS, getAlttaLogoOptionById, getAlttaProductById } from './data/alttaHomesCatalog'
 
 // Page Components
 import ImageStudio from './pages/ImageStudio'
 import AIChat from './pages/AIChat'
+
+const ALTTA_CTA_OPTIONS = [
+  'Más información',
+  'Solicitar información',
+  'Agenda tu visita',
+  'Agenda tu cita',
+]
 
 // Utility: Compress image before upload to avoid 413 errors
 const COMPRESS_IMAGE_FOR_UPLOAD = async (file, maxSizeMB = 25, maxDimension = 4000) => {
@@ -78,16 +85,17 @@ function App() {
   const [alttaPrice, setAlttaPrice] = useState('Desde $1,853,830 MXN')
   const [alttaSpecs, setAlttaSpecs] = useState('85.34 m2 · 3 Rec · 2 Banos')
   const [alttaBadge, setAlttaBadge] = useState('Grupo Sadasi')
-  const [alttaCta, setAlttaCta] = useState('Agenda tu cita')
-  const [alttaPhone, setAlttaPhone] = useState('998 385 1133')
+  const [alttaCta, setAlttaCta] = useState('Solicitar información')
+  const [alttaPhone, setAlttaPhone] = useState('998 205 9044')
+  const [selectedAlttaLogoId, setSelectedAlttaLogoId] = useState('altta-homes')
   const [alttaCopyVariants, setAlttaCopyVariants] = useState([])
   const [currentAlttaVariantIndex, setCurrentAlttaVariantIndex] = useState(0)
-  const [ctaFontSize, setCtaFontSize] = useState(1.2)
+  const [ctaFontSize, setCtaFontSize] = useState(1.05)
   const [alttaLayout, setAlttaLayout] = useState({
-    logo: { x: 50, y: 14, width: 42 },
-    model: { x: 50, y: 52, width: 70 },
-    headline: { x: 50, y: 62, width: 92 },
-    price: { x: 50, y: 75, width: 72 },
+    logo: { x: 50, y: 14, width: 18 },
+    model: { x: 50, y: 52, width: 42 },
+    headline: { x: 50, y: 62, width: 86 },
+    price: { x: 50, y: 75, width: 48 },
     cta: { x: 50, y: 86, width: 72 },
   })
   const [activeAlttaLayer, setActiveAlttaLayer] = useState(null)
@@ -118,9 +126,9 @@ function App() {
   
   // Font Size Controls (vh units for preview, sent as multiplier to backend)
   const [superFontSize, setSuperFontSize] = useState(1.4)       // Altta logo/brand
-  const [projectFontSize, setProjectFontSize] = useState(1.6)   // Model label
-  const [headlineFontSize, setHeadlineFontSize] = useState(4.2) // Hook phrase
-  const [bodyFontSize, setBodyFontSize] = useState(2.2)         // Price
+  const [projectFontSize, setProjectFontSize] = useState(1.7)   // Model label
+  const [headlineFontSize, setHeadlineFontSize] = useState(3.65) // Hook phrase
+  const [bodyFontSize, setBodyFontSize] = useState(1.85)         // Price
   
   // Granular Color Controls (replaces fixed themes)
   const [accentColor, _setAccentColor] = useState("#d4af37")
@@ -159,11 +167,54 @@ function App() {
   const previewRef = useRef(null)
 
   const selectedAlttaProduct = getAlttaProductById(selectedAlttaProductId)
+  const selectedAlttaLogoOption = getAlttaLogoOptionById(selectedAlttaLogoId)
+  const selectedAlttaLogoUrl = selectedAlttaLogoOption.src
+
+  const updateSelectedAlttaLogo = (logoId) => {
+    setSelectedAlttaLogoId(logoId)
+    setSelectedAlttaLayer('logo')
+    clearRenderedImage()
+  }
+
+  const clearRenderedImage = () => {
+    setRenderedImage(prev => {
+      if (prev?.startsWith?.('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
+  }
+
+  const updateOutputQuality = (value) => {
+    setOutputQuality(value)
+    clearRenderedImage()
+  }
+
+  const updateOutputFormat = (value) => {
+    setOutputFormat(value)
+    clearRenderedImage()
+  }
+
+  const updateAspectRatio = (value) => {
+    setAspectRatio(value)
+    clearRenderedImage()
+  }
+
+  const updateLayerSize = (setter, value) => {
+    setter(value)
+    clearRenderedImage()
+  }
 
   const normalizeAlttaPrice = (value) => {
     const clean = (value || '').trim()
     if (!clean) return ''
     return clean.toLowerCase().startsWith('desde') ? clean : `Desde ${clean}`
+  }
+
+  const getAlttaPriceParts = (value) => {
+    const normalized = normalizeAlttaPrice(value)
+    const match = normalized.match(/^(desde)\s+(.+)$/i)
+    return match
+      ? { prefix: match[1], amount: match[2] }
+      : { prefix: '', amount: normalized }
   }
 
   const buildAlttaContext = () => {
@@ -204,18 +255,18 @@ function App() {
     setLogoColor('#d6b84f')
     setLineColor('#d6b84f')
     setLayout('center')
-    setRenderedImage(null)
+    clearRenderedImage()
   }
 
   const resetAlttaLayout = () => {
     setAlttaLayout({
-      logo: { x: 50, y: 14, width: 42 },
-      model: { x: 50, y: 52, width: 70 },
-      headline: { x: 50, y: 62, width: 92 },
-      price: { x: 50, y: 75, width: 72 },
+      logo: { x: 50, y: 14, width: 18 },
+      model: { x: 50, y: 52, width: 42 },
+      headline: { x: 50, y: 62, width: 86 },
+      price: { x: 50, y: 75, width: 48 },
       cta: { x: 50, y: 86, width: 72 },
     })
-    setRenderedImage(null)
+    clearRenderedImage()
   }
 
   const startAlttaDrag = (key, event) => {
@@ -234,7 +285,7 @@ function App() {
         ...prev,
         [key]: { ...prev[key], x: Number(x.toFixed(2)), y: Number(y.toFixed(2)) }
       }))
-      setRenderedImage(null)
+      clearRenderedImage()
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
@@ -248,10 +299,11 @@ function App() {
 
   const alttaLayerStyle = (key, extra = {}) => {
     const layer = alttaLayout[key]
+    const isSizedBlock = key === 'headline' || key === 'logo'
     return {
       left: `${layer.x}%`,
       top: `${layer.y}%`,
-      width: 'fit-content',
+      width: isSizedBlock ? `${layer.width}%` : 'max-content',
       maxWidth: `${layer.width}%`,
       transform: 'translate(-50%, -50%)',
       ...extra
@@ -325,7 +377,19 @@ function App() {
         width: Math.max(12, Math.min(100, Number((prev[selectedAlttaLayer].width + delta).toFixed(2))))
       }
     }))
-    setRenderedImage(null)
+    clearRenderedImage()
+  }
+
+  const updateAlttaLayerWidth = (key, value) => {
+    setAlttaLayout(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        width: Math.max(8, Math.min(100, Number(value)))
+      }
+    }))
+    if (key === 'logo') setSelectedAlttaLayer('logo')
+    clearRenderedImage()
   }
 
   const nudgeSelectedLayer = (dx, dy) => {
@@ -338,7 +402,7 @@ function App() {
         y: Math.max(0, Math.min(100, Number((prev[selectedAlttaLayer].y + dy).toFixed(2)))),
       }
     }))
-    setRenderedImage(null)
+    clearRenderedImage()
   }
 
   const selectedLayerConfig = getSelectedLayerConfig()
@@ -376,6 +440,288 @@ function App() {
     formData.append("specs_text", alttaSpecs)
     formData.append("cta_text", alttaCta)
     formData.append("phone_text", alttaPhone)
+  }
+
+  const getExportDimensions = () => {
+    const quality = outputQuality === '4k' ? '4k' : '8k'
+    const sizes = {
+      '1:1': { '8k': [4320, 4320], '4k': [2160, 2160] },
+      '9:16': { '8k': [4320, 7680], '4k': [2160, 3840] },
+      '16:9': { '8k': [7680, 4320], '4k': [3840, 2160] },
+    }
+    return sizes[aspectRatio]?.[quality] || sizes['1:1'][quality]
+  }
+
+  const getStageAspectRatio = () => {
+    const ratios = {
+      '1:1': '1 / 1',
+      '9:16': '9 / 16',
+      '16:9': '16 / 9',
+    }
+    return ratios[aspectRatio] || ratios['1:1']
+  }
+
+  const getStageClassName = () => `altta-stage altta-stage-${aspectRatio.replace(':', 'x')}`
+
+  const loadExportImage = (src) => new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+
+  const drawImageCover = (ctx, img, x, y, width, height) => {
+    const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight)
+    const sourceW = width / scale
+    const sourceH = height / scale
+    const sourceX = (img.naturalWidth - sourceW) / 2
+    const sourceY = (img.naturalHeight - sourceH) / 2
+    ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, x, y, width, height)
+  }
+
+  const drawRoundRect = (ctx, x, y, w, h, r) => {
+    const radius = Math.min(r, w / 2, h / 2)
+    ctx.beginPath()
+    ctx.moveTo(x + radius, y)
+    ctx.arcTo(x + w, y, x + w, y + h, radius)
+    ctx.arcTo(x + w, y + h, x, y + h, radius)
+    ctx.arcTo(x, y + h, x, y, radius)
+    ctx.arcTo(x, y, x + w, y, radius)
+    ctx.closePath()
+  }
+
+  const drawCanvasScrim = (ctx, width, height) => {
+    const radial = ctx.createRadialGradient(width * 0.5, height * 0.58, 0, width * 0.5, height * 0.58, Math.min(width, height) * 0.62)
+    radial.addColorStop(0, 'rgba(2,8,14,0.22)')
+    radial.addColorStop(0.55, 'rgba(2,8,14,0.12)')
+    radial.addColorStop(1, 'rgba(2,8,14,0)')
+    ctx.fillStyle = radial
+    ctx.fillRect(0, 0, width, height)
+
+    const linear = ctx.createLinearGradient(0, 0, 0, height)
+    linear.addColorStop(0, 'rgba(2,8,14,0)')
+    linear.addColorStop(0.48, 'rgba(2,8,14,0.14)')
+    linear.addColorStop(1, 'rgba(2,8,14,0.46)')
+    ctx.fillStyle = linear
+    ctx.fillRect(0, 0, width, height)
+  }
+
+  const getCanvasFont = (element, scaleY) => {
+    const style = window.getComputedStyle(element)
+    const weight = style.fontWeight || '700'
+    const size = Math.max(1, parseFloat(style.fontSize || '16') * scaleY)
+    const family = style.fontFamily || 'Inter, Arial, sans-serif'
+    return { style, size, lineHeight: parseFloat(style.lineHeight) * scaleY || size * 1.1, font: `${weight} ${size}px ${family}` }
+  }
+
+  const wrapCanvasText = (ctx, text, maxWidth) => {
+    const sourceLines = String(text || '').split('\n')
+    const lines = []
+    sourceLines.forEach(sourceLine => {
+      const words = sourceLine.split(' ')
+      let current = ''
+      words.forEach(word => {
+        const test = `${current} ${word}`.trim()
+        if (current && ctx.measureText(test).width > maxWidth) {
+          lines.push(current)
+          current = word
+        } else {
+          current = test
+        }
+      })
+      if (current) lines.push(current)
+    })
+    return lines
+  }
+
+  const drawTextShadow = (ctx, drawFn, strong = false) => {
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.58)'
+    ctx.shadowBlur = strong ? 34 : 18
+    ctx.shadowOffsetY = strong ? 10 : 5
+    drawFn()
+    ctx.restore()
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'
+    ctx.shadowBlur = strong ? 5 : 3
+    ctx.shadowOffsetY = 2
+    drawFn()
+    ctx.restore()
+    drawFn()
+  }
+
+  const drawDomTextLayer = (ctx, selector, text, canvasRect, scaleX, scaleY, options = {}) => {
+    const element = previewRef.current?.querySelector(selector)
+    if (!element || !text) return
+    const rect = element.getBoundingClientRect()
+    const x = (rect.left - canvasRect.left) * scaleX
+    const y = (rect.top - canvasRect.top) * scaleY
+    const w = rect.width * scaleX
+    const h = rect.height * scaleY
+    const cx = x + w / 2
+    const cy = y + h / 2
+    const { style, size, lineHeight, font } = getCanvasFont(element, scaleY)
+    const color = options.color || style.color || '#fff'
+
+    ctx.save()
+    ctx.font = font
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    if (options.support) {
+      const padX = Math.max(20, size * 0.72)
+      const padY = Math.max(10, size * 0.34)
+      ctx.save()
+      drawRoundRect(ctx, x - padX * 0.08, y - padY * 0.08, w + padX * 0.16, h + padY * 0.16, h)
+      ctx.fillStyle = options.supportFill || 'rgba(3,12,22,0.38)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(214,184,79,0.24)'
+      ctx.lineWidth = Math.max(1, scaleY)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    if (options.cta) {
+      const label = alttaCta
+      const phone = alttaPhone
+      const gap = size * 0.7
+      const labelW = ctx.measureText(label).width
+      const phoneW = ctx.measureText(phone).width
+      const sepX = cx - (labelW + phoneW + gap) / 2 + labelW + gap / 2
+      drawTextShadow(ctx, () => {
+        ctx.fillStyle = '#fff'
+        ctx.fillText(label, cx - (phoneW + gap) / 2, cy)
+        ctx.fillStyle = accentColor
+        ctx.fillText(phone, cx + (labelW + gap) / 2, cy)
+      })
+      ctx.strokeStyle = 'rgba(214,184,79,0.45)'
+      ctx.lineWidth = Math.max(1, scaleY)
+      ctx.beginPath()
+      ctx.moveTo(sepX, cy - size * 0.46)
+      ctx.lineTo(sepX, cy + size * 0.46)
+      ctx.stroke()
+      ctx.restore()
+      return
+    }
+
+    const lines = wrapCanvasText(ctx, text, Math.max(1, w))
+    const startY = cy - ((lines.length - 1) * lineHeight) / 2
+    drawTextShadow(ctx, () => {
+      ctx.fillStyle = color
+      lines.forEach((line, index) => {
+        ctx.fillText(line, cx, startY + index * lineHeight)
+      })
+    }, options.strongShadow)
+    ctx.restore()
+  }
+
+  const drawDomImageLayer = async (ctx, selector, src, canvasRect, scaleX, scaleY) => {
+    const element = previewRef.current?.querySelector(selector)
+    if (!element || !src) return
+    const rect = element.getBoundingClientRect()
+    const x = (rect.left - canvasRect.left) * scaleX
+    const y = (rect.top - canvasRect.top) * scaleY
+    const w = rect.width * scaleX
+    const h = rect.height * scaleY
+    const img = await loadExportImage(src)
+
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'
+    ctx.shadowBlur = Math.max(8, h * 0.22)
+    ctx.shadowOffsetY = Math.max(2, h * 0.08)
+    ctx.drawImage(img, x, y, w, h)
+    ctx.restore()
+  }
+
+  const drawDomPriceLayer = (ctx, selector, canvasRect, scaleX, scaleY) => {
+    const element = previewRef.current?.querySelector(selector)
+    const prefixEl = element?.querySelector('.altta-price-prefix')
+    const amountEl = element?.querySelector('.altta-price-amount')
+    if (!element || !amountEl) return
+
+    const rect = element.getBoundingClientRect()
+    const x = (rect.left - canvasRect.left) * scaleX
+    const y = (rect.top - canvasRect.top) * scaleY
+    const w = rect.width * scaleX
+    const h = rect.height * scaleY
+    const radius = h / 2
+
+    ctx.save()
+    drawRoundRect(ctx, x, y, w, h, radius)
+    ctx.fillStyle = 'rgba(3,12,22,0.62)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(214,184,79,0.46)'
+    ctx.lineWidth = Math.max(1, scaleY * 1.2)
+    ctx.stroke()
+    ctx.restore()
+
+    const drawSpan = (span, color) => {
+      const spanRect = span.getBoundingClientRect()
+      const sx = (spanRect.left - canvasRect.left) * scaleX
+      const sy = (spanRect.top - canvasRect.top) * scaleY
+      const sw = spanRect.width * scaleX
+      const sh = spanRect.height * scaleY
+      const { font } = getCanvasFont(span, scaleY)
+      ctx.save()
+      ctx.font = font
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      drawTextShadow(ctx, () => {
+        ctx.fillStyle = color
+        ctx.fillText(span.textContent, sx + sw / 2, sy + sh / 2)
+      })
+      ctx.restore()
+    }
+
+    if (prefixEl) drawSpan(prefixEl, '#fff7db')
+    drawSpan(amountEl, accentColor)
+  }
+
+  const exportCurrentDesign = async ({ download = true } = {}) => {
+    if (!imageSrc || !previewRef.current) {
+      alert("Necesitas una imagen en el canvas primero.")
+      return null
+    }
+
+    const [targetW, targetH] = getExportDimensions()
+    const canvas = document.createElement('canvas')
+    canvas.width = targetW
+    canvas.height = targetH
+    const ctx = canvas.getContext('2d')
+    const overlayRect = previewRef.current.getBoundingClientRect()
+    const scaleX = targetW / overlayRect.width
+    const scaleY = targetH / overlayRect.height
+
+    const img = await loadExportImage(imageSrc)
+    ctx.clearRect(0, 0, targetW, targetH)
+    ctx.fillStyle = '#05080f'
+    ctx.fillRect(0, 0, targetW, targetH)
+    drawImageCover(ctx, img, 0, 0, targetW, targetH)
+    drawCanvasScrim(ctx, targetW, targetH)
+
+    await drawDomImageLayer(ctx, '.altta-preview-brand-logo', selectedAlttaLogoUrl, overlayRect, scaleX, scaleY)
+    drawDomTextLayer(ctx, '.altta-preview-model', `Modelo ${alttaModel}`, overlayRect, scaleX, scaleY, { color: projectColor, support: true, supportFill: 'rgba(3,12,22,0.34)' })
+    drawDomTextLayer(ctx, '.altta-preview-headline', mainHeadline, overlayRect, scaleX, scaleY, { color: textColor, strongShadow: true })
+    drawDomPriceLayer(ctx, '.altta-preview-price', overlayRect, scaleX, scaleY)
+    drawDomTextLayer(ctx, '.altta-preview-bottom', `${alttaCta} ${alttaPhone}`, overlayRect, scaleX, scaleY, { color: bodyColor, support: true, supportFill: 'rgba(3,12,22,0.52)', cta: true })
+
+    const mime = outputFormat === 'png' ? 'image/png' : 'image/jpeg'
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, outputFormat === 'png' ? undefined : 0.98))
+    if (!blob) throw new Error('No se pudo generar la imagen final.')
+
+    const url = URL.createObjectURL(blob)
+    if (download) {
+      const a = document.createElement('a')
+      const projName = projectContext ? projectContext.trim().replace(/\s+/g, '_') : 'AlttaHomes_Ad'
+      const dimensionStr = aspectRatio.replace(':', 'x')
+      a.href = url
+      a.download = `${projName}_${dimensionStr}_${Date.now()}.${outputFormat === 'png' ? 'png' : 'jpg'}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+    }
+    return url
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -428,7 +774,7 @@ function App() {
       setLineColor(cs.accent || '#d4af37')
     }
     
-    setRenderedImage(null) // Reset preview
+    clearRenderedImage()
   }
 
   const handleAddProject = async () => {
@@ -470,13 +816,13 @@ function App() {
       if (imageSrc && imageSrc.startsWith('blob:')) {
         URL.revokeObjectURL(imageSrc)
       }
-      setRenderedImage(null) // Reset when uploading new
+      clearRenderedImage()
       const url = URL.createObjectURL(file)
       setImageSrc(url)
     }
   }
 
-  const handleRealPreview = async () => {
+  const HANDLE_REAL_PREVIEW_LEGACY = async () => {
     if (!imageSrc) return alert("Sube una imagen primero.")
     setLoading(true)
     try {
@@ -498,7 +844,7 @@ function App() {
       if (response.ok) {
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
-        if (renderedImage) URL.revokeObjectURL(renderedImage)
+        clearRenderedImage()
         setRenderedImage(url)
       } else {
         alert("El Backend no respondió correctamente para la previa.")
@@ -536,6 +882,9 @@ function App() {
         const blob = new Blob([byteArray], { type: data.mime_type })
         const imageUrl = URL.createObjectURL(blob)
         
+        if (imageSrc?.startsWith?.('blob:')) URL.revokeObjectURL(imageSrc)
+        clearRenderedImage()
+        setImageFile(null)
         setImageSrc(imageUrl)
         alert("✅ Imagen generada con IA exitosamente!")
       } else {
@@ -710,7 +1059,7 @@ function App() {
     }
   }
 
-  const handleExport = async () => {
+  const HANDLE_EXPORT_LEGACY = async () => {
     if (!imageSrc) {
       alert("Necesitas una imagen en el canvas primero.")
       return
@@ -751,11 +1100,45 @@ function App() {
         document.body.appendChild(a)
         a.click()
         a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 4000)
       } else {
         console.warn("Backend FastAPI falló o no está activo.")
       }
     } catch (err) {
       console.error("No se pudo conectar al backend", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExactPreview = async () => {
+    if (!imageSrc) return alert("Sube una imagen primero.")
+    setLoading(true)
+    try {
+      const url = await exportCurrentDesign({ download: false })
+      if (url) {
+        clearRenderedImage()
+        setRenderedImage(url)
+      }
+    } catch (err) {
+      console.error("No se pudo generar la previa exacta", err)
+      alert("No se pudo generar la previa exacta del editor.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExactExport = async () => {
+    if (!imageSrc) {
+      alert("Necesitas una imagen en el canvas primero.")
+      return
+    }
+    setLoading(true)
+    try {
+      await exportCurrentDesign({ download: true })
+    } catch (err) {
+      console.error("No se pudo exportar el diseño exacto", err)
+      alert("No se pudo descargar el diseño exacto.")
     } finally {
       setLoading(false)
     }
@@ -796,6 +1179,7 @@ function App() {
         document.body.appendChild(a)
         a.click()
         a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 4000)
       } else {
         console.warn("Backend FastAPI falló o no está activo.")
         alert("Error al intentar mejorar la foto.")
@@ -892,30 +1276,38 @@ function App() {
             ))}
           </select>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-            <input className="form-input" value={alttaDevelopment} onChange={(e) => { setAlttaDevelopment(e.target.value); setProjectContext(e.target.value); setRenderedImage(null) }} placeholder="Desarrollo" />
-            <input className="form-input" value={alttaModel} onChange={(e) => { setAlttaModel(e.target.value); setRenderedImage(null) }} placeholder="Modelo" />
+            <input className="form-input" value={alttaDevelopment} onChange={(e) => { setAlttaDevelopment(e.target.value); setProjectContext(e.target.value); clearRenderedImage() }} placeholder="Desarrollo" />
+            <input className="form-input" value={alttaModel} onChange={(e) => { setAlttaModel(e.target.value); clearRenderedImage() }} placeholder="Modelo" />
           </div>
           <div style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-            <input className="form-input" value={alttaProductType} onChange={(e) => { setAlttaProductType(e.target.value); setRenderedImage(null) }} placeholder="Tipo" />
-            <input className="form-input" value={alttaBadge} onChange={(e) => { setAlttaBadge(e.target.value); setRenderedImage(null) }} placeholder="Badge" />
+            <input className="form-input" value={alttaProductType} onChange={(e) => { setAlttaProductType(e.target.value); clearRenderedImage() }} placeholder="Tipo" />
+            <input className="form-input" value={alttaBadge} onChange={(e) => { setAlttaBadge(e.target.value); clearRenderedImage() }} placeholder="Badge" />
           </div>
           <input
             className="form-input"
             value={alttaPrice}
-            onChange={(e) => { setAlttaPrice(normalizeAlttaPrice(e.target.value)); setRenderedImage(null) }}
+            onChange={(e) => { setAlttaPrice(normalizeAlttaPrice(e.target.value)); clearRenderedImage() }}
             placeholder="Desde $0 MXN"
             style={{ marginBottom: '8px' }}
           />
           <input
             className="form-input"
             value={alttaSpecs}
-            onChange={(e) => { setAlttaSpecs(e.target.value); setRenderedImage(null) }}
+            onChange={(e) => { setAlttaSpecs(e.target.value); clearRenderedImage() }}
             placeholder="m2 · Rec · Banos"
             style={{ marginBottom: '8px' }}
           />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
-            <input className="form-input" value={alttaCta} onChange={(e) => { setAlttaCta(e.target.value); setRenderedImage(null) }} placeholder="CTA" />
-            <input className="form-input" value={alttaPhone} onChange={(e) => { setAlttaPhone(e.target.value); setRenderedImage(null) }} placeholder="Telefono" />
+            <select
+              className="form-select"
+              value={alttaCta}
+              onChange={(e) => { setAlttaCta(e.target.value); clearRenderedImage() }}
+            >
+              {[...new Set([alttaCta, ...ALTTA_CTA_OPTIONS].filter(Boolean))].map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+            <input className="form-input" value={alttaPhone} onChange={(e) => { setAlttaPhone(e.target.value); clearRenderedImage() }} placeholder="Telefono" />
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-ai" style={{ flex: 1, padding: '9px', animation: 'none' }} onClick={handleGenerateAlttaCopy}>
@@ -935,7 +1327,7 @@ function App() {
                   onClick={() => {
                     setCurrentAlttaVariantIndex(idx)
                     setMainHeadline(hook)
-                    setRenderedImage(null)
+                    clearRenderedImage()
                   }}
                 >
                   Frase {idx + 1}
@@ -1087,12 +1479,35 @@ function App() {
 
         <div className="form-group">
           <label className="form-label">Logo / Marca</label>
+          <select
+            className="form-select"
+            value={selectedAlttaLogoId}
+            onChange={(e) => updateSelectedAlttaLogo(e.target.value)}
+            style={{ marginBottom: '8px' }}
+          >
+            {ALTTA_LOGO_OPTIONS.map(option => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
           <input 
             type="text" 
             className="form-input" 
             value={superHeadline}
             onChange={(e) => setSuperHeadline(e.target.value)}
           />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+            <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Tamaño</span>
+            <input
+              type="range"
+              min="8"
+              max="42"
+              step="1"
+              value={alttaLayout.logo.width}
+              onChange={(e) => updateAlttaLayerWidth('logo', e.target.value)}
+              style={{ flex: 1, accentColor: '#d4af37' }}
+            />
+            <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{alttaLayout.logo.width}%</span>
+          </div>
         </div>
 
         <div className="form-group">
@@ -1128,7 +1543,7 @@ function App() {
                 type="range" 
                 min="0.8" max="3" step="0.1"
                 value={superFontSize}
-                onChange={(e) => setSuperFontSize(parseFloat(e.target.value))}
+                onChange={(e) => updateLayerSize(setSuperFontSize, parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{superFontSize}vh</span>
@@ -1140,7 +1555,7 @@ function App() {
                 type="range" 
                 min="0.9" max="3" step="0.1"
                 value={projectFontSize}
-                onChange={(e) => setProjectFontSize(parseFloat(e.target.value))}
+                onChange={(e) => updateLayerSize(setProjectFontSize, parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{projectFontSize}vh</span>
@@ -1152,7 +1567,7 @@ function App() {
                 type="range" 
                 min="2" max="7" step="0.2"
                 value={headlineFontSize}
-                onChange={(e) => setHeadlineFontSize(parseFloat(e.target.value))}
+                onChange={(e) => updateLayerSize(setHeadlineFontSize, parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{headlineFontSize}vh</span>
@@ -1164,7 +1579,7 @@ function App() {
                 type="range" 
                 min="1.4" max="4" step="0.1"
                 value={bodyFontSize}
-                onChange={(e) => setBodyFontSize(parseFloat(e.target.value))}
+                onChange={(e) => updateLayerSize(setBodyFontSize, parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{bodyFontSize}vh</span>
@@ -1176,7 +1591,7 @@ function App() {
                 type="range" 
                 min="0.8" max="2.5" step="0.1"
                 value={ctaFontSize}
-                onChange={(e) => setCtaFontSize(parseFloat(e.target.value))}
+                onChange={(e) => updateLayerSize(setCtaFontSize, parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{ctaFontSize}vh</span>
@@ -1224,7 +1639,7 @@ function App() {
 
         <div style={{ marginBottom: '1.5rem' }}>
           <label className="form-label">Layout</label>
-          <select className="form-select" value={layout} onChange={(e) => setLayout(e.target.value)}>
+          <select className="form-select" value={layout} onChange={(e) => { setLayout(e.target.value); clearRenderedImage() }}>
             <option value="left">Izquierda</option>
             <option value="center">Centro</option>
             <option value="right">Derecha</option>
@@ -1243,15 +1658,14 @@ function App() {
           <div style={{ display: 'flex', gap: '8px' }}>
             <div style={{ flex: 1 }}>
               <label className="form-label">Resolución</label>
-              <select className="form-select" value={outputQuality} onChange={(e) => setOutputQuality(e.target.value)}>
+              <select className="form-select" value={outputQuality} onChange={(e) => updateOutputQuality(e.target.value)}>
                 <option value="8k">🔥 8K UHD (7680px)</option>
                 <option value="4k">⚡ 4K UHD (3840px)</option>
-                <option value="original">📷 Original</option>
               </select>
             </div>
             <div style={{ flex: 1 }}>
               <label className="form-label">Formato</label>
-              <select className="form-select" value={outputFormat} onChange={(e) => setOutputFormat(e.target.value)}>
+              <select className="form-select" value={outputFormat} onChange={(e) => updateOutputFormat(e.target.value)}>
                 <option value="jpeg">JPEG (Rápido)</option>
                 <option value="png">PNG (Lossless)</option>
               </select>
@@ -1259,7 +1673,7 @@ function App() {
           </div>
           <div style={{ marginTop: '8px' }}>
             <label className="form-label">Proporción</label>
-            <select className="form-select" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
+            <select className="form-select" value={aspectRatio} onChange={(e) => updateAspectRatio(e.target.value)}>
               <option value="1:1">⬜ Cuadrado (1:1) — Feed</option>
               <option value="9:16">📱 Reel / Story (9:16)</option>
               <option value="16:9">🖥️ Paisaje (16:9) — YouTube</option>
@@ -1271,7 +1685,7 @@ function App() {
           <button 
             className="btn btn-secondary" 
             style={{marginBottom: '10px', border: '1px solid #6366f1', color: '#818cf8'}} 
-            onClick={handleRealPreview}
+            onClick={handleExactPreview}
           >
             👁️ Generar Previa Real
           </button>
@@ -1282,7 +1696,7 @@ function App() {
           >
             🪄 Solo Mejorar en 8K (Limpia)
           </button>
-          <button className="btn btn-primary" onClick={handleExport}>
+          <button className="btn btn-primary" onClick={handleExactExport}>
             ⬇️ Descargar Anuncio Final
           </button>
         </div>
@@ -1292,7 +1706,7 @@ function App() {
       <div className="canvas-area">
         <div className="canvas-toolbar">
           {renderedImage && (
-            <button className="btn btn-secondary" style={{width: 'auto', marginRight: 'auto'}} onClick={() => setRenderedImage(null)}>
+            <button className="btn btn-secondary" style={{width: 'auto', marginRight: 'auto'}} onClick={clearRenderedImage}>
               ⬅️ Volver a Editor
             </button>
           )}
@@ -1313,7 +1727,7 @@ function App() {
               value={selectedLayerConfig.text}
               onChange={(e) => {
                 selectedLayerConfig.setText(e.target.value)
-                setRenderedImage(null)
+                clearRenderedImage()
               }}
             />
             <input
@@ -1322,8 +1736,8 @@ function App() {
               value={selectedLayerConfig.color}
               onChange={(e) => selectedLayerConfig.setColor(e.target.value)}
             />
-            <button onClick={() => selectedLayerConfig.setSize(Math.max(0.6, Number((selectedLayerConfig.size - 0.1).toFixed(1))))}>-</button>
-            <button onClick={() => selectedLayerConfig.setSize(Number((selectedLayerConfig.size + 0.1).toFixed(1)))}>+</button>
+            <button onClick={() => updateLayerSize(selectedLayerConfig.setSize, Math.max(0.6, Number((selectedLayerConfig.size - 0.1).toFixed(1))))}>-</button>
+            <button onClick={() => updateLayerSize(selectedLayerConfig.setSize, Number((selectedLayerConfig.size + 0.1).toFixed(1)))}>+</button>
             <button onClick={() => updateSelectedLayerWidth(-4)}>W-</button>
             <button onClick={() => updateSelectedLayerWidth(4)}>W+</button>
             <button onClick={() => nudgeSelectedLayer(0, -1)}>↑</button>
@@ -1338,7 +1752,8 @@ function App() {
             <img src={renderedImage} alt="Real Preview" className="image-preview" />
           ) : imageSrc ? (
             <>
-              <img src={imageSrc} alt="Preview" className="image-preview" />
+              <div className={getStageClassName()} style={{ '--stage-ratio': getStageAspectRatio() }}>
+              <img src={imageSrc} alt="Preview" className="image-preview altta-stage-image" />
               <div className={`layout-preview-overlay align-${layout}`} style={{ display: 'none' }}>
                 <div style={{
                   width: '100%', 
@@ -1436,7 +1851,11 @@ function App() {
                   onPointerDown={(e) => startAlttaDrag('logo', e)}
                   style={alttaLayerStyle('logo', { color: logoColor, fontSize: `${superFontSize}vh` })}
                 >
-                    {superHeadline}
+                  {selectedAlttaLogoUrl ? (
+                    <img className="altta-preview-brand-logo" src={selectedAlttaLogoUrl} alt={selectedAlttaLogoOption.label} />
+                  ) : (
+                    superHeadline
+                  )}
                 </div>
                 <div
                   className={`altta-draggable altta-preview-model ${selectedAlttaLayer === 'model' ? 'selected' : ''}`}
@@ -1459,15 +1878,16 @@ function App() {
                   onPointerDown={(e) => startAlttaDrag('price', e)}
                   style={alttaLayerStyle('price', { color: accentColor, fontSize: `${bodyFontSize}vh` })}
                 >
-                    {normalizeAlttaPrice(alttaPrice)}
+                  <span className="altta-price-prefix">{getAlttaPriceParts(alttaPrice).prefix}</span>
+                  <span className="altta-price-amount">{getAlttaPriceParts(alttaPrice).amount}</span>
                 </div>
                 <div
                   className={`altta-draggable altta-preview-bottom ${selectedAlttaLayer === 'cta' ? 'selected' : ''}`}
                   onPointerDown={(e) => startAlttaDrag('cta', e)}
                   style={alttaLayerStyle('cta', { color: bodyColor, fontSize: `${ctaFontSize}vh` })}
                 >
-                  <span>{alttaCta}</span>
-                  <span>{alttaPhone}</span>
+                  <span className="altta-cta-label">{alttaCta}</span>
+                  <span className="altta-cta-phone">{alttaPhone}</span>
                 </div>
                 {selectedLayerConfig && selectedLayerPosition && (
                   <div
@@ -1486,7 +1906,7 @@ function App() {
                       value={selectedLayerConfig.text}
                       onChange={(e) => {
                         selectedLayerConfig.setText(e.target.value)
-                        setRenderedImage(null)
+                        clearRenderedImage()
                       }}
                     />
                     <input
@@ -1495,8 +1915,8 @@ function App() {
                       value={selectedLayerConfig.color}
                       onChange={(e) => selectedLayerConfig.setColor(e.target.value)}
                     />
-                    <button onClick={() => selectedLayerConfig.setSize(Math.max(0.6, Number((selectedLayerConfig.size - 0.1).toFixed(1))))}>-</button>
-                    <button onClick={() => selectedLayerConfig.setSize(Number((selectedLayerConfig.size + 0.1).toFixed(1)))}>+</button>
+                    <button onClick={() => updateLayerSize(selectedLayerConfig.setSize, Math.max(0.6, Number((selectedLayerConfig.size - 0.1).toFixed(1))))}>-</button>
+                    <button onClick={() => updateLayerSize(selectedLayerConfig.setSize, Number((selectedLayerConfig.size + 0.1).toFixed(1)))}>+</button>
                     <button onClick={() => updateSelectedLayerWidth(-4)}>W-</button>
                     <button onClick={() => updateSelectedLayerWidth(4)}>W+</button>
                     <button onClick={() => nudgeSelectedLayer(0, -1)}>↑</button>
@@ -1505,6 +1925,7 @@ function App() {
                     <button onClick={() => nudgeSelectedLayer(1, 0)}>→</button>
                   </div>
                 )}
+              </div>
               </div>
             </>
           ) : (

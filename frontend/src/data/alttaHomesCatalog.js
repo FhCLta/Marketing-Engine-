@@ -8,7 +8,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '85.34 m2 · 3 Rec · 2 Banos',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Tu hogar en Cancun con alberca y amenidades',
     context: 'Departamento Modelo Capua en Jardines del Sur 6, Cancun. 85.34 m2 de construccion, 3 recamaras, 2 banos, estacionamiento, amenidades y preventa familiar.'
   },
@@ -21,7 +21,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '104 m2 · 3 Rec · 2 Banos',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Mas espacio para vivir Cancun a tu ritmo',
     context: 'Departamento Cedro Plus en Jardines del Sur 6, Cancun. 104 m2, 3 recamaras, 2 banos, estacionamiento, espacios amplios y amenidades.'
   },
@@ -34,7 +34,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '90 m2 terreno · 89 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Casa propia para crecer en Cancun',
     context: 'Casa Modelo Flamboyan en Jardines del Sur 6, Cancun. 90 m2 de terreno, 89 m2 de construccion, 3 recamaras, patio posterior y estacionamiento.'
   },
@@ -47,7 +47,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '90 m2 terreno · 120 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Tres niveles para vivir con mas libertad',
     context: 'Casa Modelo Ceiba en Jardines del Sur 6, Cancun. 90 m2 de terreno, 120 m2 de construccion, 3 niveles, roof garden, recamaras con bano y patio posterior.'
   },
@@ -60,7 +60,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '120 m2 terreno · 116.04 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Un hogar amplio para la vida familiar',
     context: 'Casa Modelo Tabachin en Jardines del Sur 6, Cancun. 120 m2 de terreno, 116.04 m2 de construccion, 3 recamaras, 2 autos, patio posterior y estancia de TV.'
   },
@@ -73,7 +73,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '120 m2 terreno · 157.2 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Mas amplitud para estrenar tu nueva etapa',
     context: 'Casa Modelo Noni en Jardines del Sur 6, Cancun. 120 m2 de terreno, 157.2 m2 de construccion, 3 recamaras, sala de TV, 2 autos y patio posterior.'
   },
@@ -86,7 +86,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '120 m2 lote · 194.80 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Lujo y tranquilidad para vivir en grande',
     context: 'Casa Modelo Noni Elite en La Rioja Residencial 2, Cancun. 120 m2 de lote, 194.80 m2 de construccion, 3 niveles, terraza, amenidades, alberca, gimnasio, padel y juegos infantiles.'
   },
@@ -99,7 +99,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '120 m2 lote · 156.70 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Tu casa en una privada con amenidades',
     context: 'Casa Modelo Noni en La Rioja Residencial 2, Cancun. 120 m2 de lote, 156.70 m2 de construccion, 3 recamaras, estancia de TV, patio posterior y amenidades.'
   },
@@ -112,7 +112,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '150 m2 lote · 200 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Espacio, amenidades y ubicacion para crecer',
     context: 'Casa Modelo Alamo en La Rioja Residencial 2, Cancun. 150 m2 de lote, 200 m2 de construccion, 3 recamaras, terraza, patio posterior y amenidades.'
   },
@@ -125,7 +125,7 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '150 m2 lote · 191.70 m2 construccion',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Diseno y amplitud para tu vida familiar',
     context: 'Casa Modelo Fresno Elite en La Rioja Residencial 2, Cancun. 150 m2 de lote, 191.70 m2 de construccion, acabados de calidad, 3 recamaras, patio posterior y amenidades.'
   },
@@ -138,10 +138,27 @@ export const ALTTA_HOMES_CATALOG = [
     specs: '103.70 m2 · 3 Hab · 2.5 Banos',
     badge: 'Grupo Sadasi',
     cta: 'Agenda tu cita',
-    phone: '998 385 1133',
+    phone: '998 205 9044',
     defaultHook: 'Preventa con ubicacion centrica y amenidades',
     context: 'Departamento Cedro Plus en Lirios Residencial 2, Cancun. Preventa 2026, 103.70 m2, 3 habitaciones, 2.5 banos, ubicacion centrica estrategica, acabados de calidad y amenidades.'
   }
 ]
 
+export const ALTTA_LOGO_OPTIONS = [
+  { id: 'altta-homes', label: 'Altta Homes', src: '/logos/altta-homes.png' },
+  { id: 'jardines-del-sur-6', label: 'Jardines del Sur 6', src: '/logos/jardines-del-sur-6.svg' },
+  { id: 'la-rioja-residencial-2', label: 'La Rioja Residencial 2', src: '/logos/la-rioja-residencial-2.svg' },
+]
+
+export const ALTTA_DEVELOPMENT_LOGOS = {
+  'Altta Homes': 'altta-homes',
+  'Jardines del Sur 6': 'jardines-del-sur-6',
+  'La Rioja Residencial 2': 'la-rioja-residencial-2',
+  'Lirios Residencial 2': 'altta-homes',
+}
+
 export const getAlttaProductById = (id) => ALTTA_HOMES_CATALOG.find(item => item.id === id)
+
+export const getAlttaLogoOptionById = (id) => (
+  ALTTA_LOGO_OPTIONS.find(item => item.id === id) || ALTTA_LOGO_OPTIONS[0]
+)

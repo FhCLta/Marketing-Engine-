@@ -484,10 +484,34 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
         model_color = hex_to_rgba(params.project_color_hex) or theme_cfg["headline"]
         logo_color = hex_to_rgba(params.logo_color_hex) or theme_cfg["accent"]
 
+        scrim = Image.new('RGBA', state['img'].size, (0, 0, 0, 0))
+        scrim_draw = ImageDraw.Draw(scrim)
+        gradient_start = int(height * 0.46)
+        for y in range(gradient_start, height):
+            progress = (y - gradient_start) / max(1, height - gradient_start)
+            alpha = int((progress ** 1.35) * 118)
+            scrim_draw.line([(0, y), (width, y)], fill=(2, 8, 14, alpha))
+
+        radial = Image.new('RGBA', state['img'].size, (0, 0, 0, 0))
+        radial_draw = ImageDraw.Draw(radial)
+        ellipse_w = int(width * 1.05)
+        ellipse_h = int(height * 0.58)
+        ellipse_x = int((width - ellipse_w) / 2)
+        ellipse_y = int(height * 0.35)
+        radial_draw.ellipse(
+            [ellipse_x, ellipse_y, ellipse_x + ellipse_w, ellipse_y + ellipse_h],
+            fill=(2, 8, 14, 54),
+        )
+        radial = radial.filter(ImageFilter.GaussianBlur(radius=max(24, int(height * 0.055))))
+        scrim = Image.alpha_composite(scrim, radial)
+        state['img'] = Image.alpha_composite(state['img'], scrim)
+        state['draw'] = ImageDraw.Draw(state['img'])
+
         f_brand = load_font(FONT_SANS, max(22, int(height * (params.super_font_size / 100.0) * 1.1 * font_scale)))
         f_model = load_font(FONT_SANS, max(22, int(height * (params.project_font_size / 100.0) * 1.1 * font_scale)))
         f_hook = load_font(FONT_SERIF, max(42, int(height * (params.headline_font_size / 100.0) * 1.1 * font_scale)))
         f_price = load_font(FONT_SERIF, max(30, int(height * (params.body_font_size / 100.0) * 1.1 * font_scale)))
+        f_price_prefix = load_font(FONT_SANS, max(24, int(height * (params.body_font_size / 100.0) * 0.88 * font_scale)))
         f_cta = load_font(FONT_SANS, max(20, int(height * (params.cta_font_size / 100.0) * 1.1 * font_scale)))
 
         pad = int(width * 0.065)
@@ -503,9 +527,9 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
 
         default_layout = {
             "logo": {"x": 50, "y": 14, "width": 42},
-            "model": {"x": 50, "y": 52, "width": 70},
-            "headline": {"x": 50, "y": 62, "width": 92},
-            "price": {"x": 50, "y": 75, "width": 72},
+            "model": {"x": 50, "y": 52, "width": 42},
+            "headline": {"x": 50, "y": 62, "width": 86},
+            "price": {"x": 50, "y": 75, "width": 48},
             "cta": {"x": 50, "y": 86, "width": 72},
         }
         try:
@@ -533,7 +557,7 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
         align_mode_altta = params.layout.lower()
         draw_align = "center" if align_mode_altta not in ["left", "right"] else align_mode_altta
 
-        def draw_free_text(key, text, font, fill, spacing=8):
+        def draw_free_text(key, text, font, fill, spacing=8, support=False, shadow_radius=None):
             if not text:
                 return
             cfg = layer_config(key)
@@ -551,15 +575,115 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
             else:
                 x = anchor_x - (text_w / 2)
             y = anchor_y - (text_h / 2)
-            draw_text_with_shadow((x, y), wrapped, font, fill, draw_align, shadow_radius=max(2, int(height * 0.0015)))
+            if support:
+                pad_x = max(14, int(height * 0.01))
+                pad_y = max(8, int(height * 0.006))
+                radius = max(16, int(height * 0.018))
+                box = [
+                    int(x - pad_x),
+                    int(y - pad_y),
+                    int(x + text_w + pad_x),
+                    int(y + text_h + pad_y),
+                ]
+                support_layer = Image.new('RGBA', state['img'].size, (0, 0, 0, 0))
+                support_draw = ImageDraw.Draw(support_layer)
+                support_draw.rounded_rectangle(
+                    box,
+                    radius=radius,
+                    fill=(3, 12, 22, 92),
+                    outline=(214, 184, 79, 58),
+                    width=max(1, int(height * 0.001)),
+                )
+                state['img'] = Image.alpha_composite(state['img'], support_layer)
+                state['draw'] = ImageDraw.Draw(state['img'])
 
-        draw_free_text("logo", brand, f_brand, logo_color)
-        draw_free_text("model", f"Modelo {model_name}", f_model, model_color)
-        draw_free_text("headline", hook, f_hook, headline_color, spacing=max(8, int(height * 0.006)))
-        draw_free_text("price", price, f_price, price_color)
+            draw_text_with_shadow(
+                (x, y),
+                wrapped,
+                font,
+                fill,
+                draw_align,
+                shadow_radius=shadow_radius or max(3, int(height * 0.0025)),
+            )
+
+        def draw_price_text(key, text):
+            if not text:
+                return
+            cfg = layer_config(key)
+            prefix = ""
+            amount = text
+            if text.lower().startswith("desde "):
+                prefix = text[:5]
+                amount = text[6:].strip()
+
+            gap = max(10, int(height * 0.006))
+            prefix_bbox = state['draw'].textbbox((0, 0), prefix, font=f_price_prefix) if prefix else (0, 0, 0, 0)
+            amount_bbox = state['draw'].textbbox((0, 0), amount, font=f_price)
+            prefix_w = prefix_bbox[2] - prefix_bbox[0]
+            prefix_h = prefix_bbox[3] - prefix_bbox[1]
+            amount_w = amount_bbox[2] - amount_bbox[0]
+            amount_h = amount_bbox[3] - amount_bbox[1]
+            text_w = prefix_w + (gap if prefix else 0) + amount_w
+            text_h = max(prefix_h, amount_h)
+
+            anchor_x = width * (cfg["x"] / 100)
+            anchor_y = height * (cfg["y"] / 100)
+            if align_mode_altta == "left":
+                x = anchor_x
+            elif align_mode_altta == "right":
+                x = anchor_x - text_w
+            else:
+                x = anchor_x - (text_w / 2)
+            y = anchor_y - (text_h / 2)
+
+            pad_x = max(18, int(height * 0.012))
+            pad_y = max(10, int(height * 0.007))
+            radius = max(18, int(height * 0.019))
+            box = [
+                int(x - pad_x),
+                int(y - pad_y),
+                int(x + text_w + pad_x),
+                int(y + text_h + pad_y),
+            ]
+            support_layer = Image.new('RGBA', state['img'].size, (0, 0, 0, 0))
+            support_draw = ImageDraw.Draw(support_layer)
+            support_draw.rounded_rectangle(
+                box,
+                radius=radius,
+                fill=(3, 12, 22, 150),
+                outline=(214, 184, 79, 112),
+                width=max(1, int(height * 0.0012)),
+            )
+            state['img'] = Image.alpha_composite(state['img'], support_layer)
+            state['draw'] = ImageDraw.Draw(state['img'])
+
+            current_x = x
+            if prefix:
+                draw_text_with_shadow(
+                    (current_x, y + (text_h - prefix_h) / 2),
+                    prefix,
+                    f_price_prefix,
+                    (255, 247, 219, 255),
+                    "left",
+                    shadow_radius=max(3, int(height * 0.0022)),
+                )
+                current_x += prefix_w + gap
+            draw_text_with_shadow(
+                (current_x, y + (text_h - amount_h) / 2),
+                amount,
+                f_price,
+                price_color,
+                "left",
+                shadow_radius=max(3, int(height * 0.0022)),
+            )
+
+        draw_free_text("logo", brand, f_brand, logo_color, shadow_radius=max(3, int(height * 0.002)))
+        draw_free_text("model", f"Modelo {model_name}", f_model, model_color, support=True)
+        draw_free_text("headline", hook, f_hook, headline_color, spacing=max(8, int(height * 0.006)), shadow_radius=max(6, int(height * 0.004)))
+        draw_price_text("price", price)
 
         bottom_text = "  -  ".join([t for t in [cta, phone] if t])
-        draw_free_text("cta", bottom_text, f_cta, cta_color)
+        draw_free_text("cta", bottom_text, f_cta, cta_color, support=True, shadow_radius=max(3, int(height * 0.0025)))
 
         out_io = BytesIO()
         final_img = state['img']
