@@ -386,4 +386,164 @@ n_scenes = ceil(total_seconds / seconds_per_image)
 
 ---
 
-_Última actualización del contexto: 4 mayo 2026 — agregado OpenAI/GPT Image 2, Storyboard V2 con generación por escena/modelo por escena, plantilla Reel editable y modo Solo dividir guion._
+## 14. Altta Homes Product Ad Builder (nuevo flujo principal)
+
+El flujo de publicaciones de producto se migró a **Altta Homes**. La estructura visual anterior se conserva como base técnica, pero la información vieja de Brisa Maya/BMC ya no es el foco del render de producto. El nuevo formato debe producir artes inmobiliarios para desarrollos y modelos de Altta Homes, con salida consistente en `1:1`, `9:16` y `16:9`.
+
+### Estructura visual vigente
+
+Sobre la imagen base solo deben renderizarse estos elementos:
+
+- Logo / marca principal: por ahora `AlttaHomes`.
+- Modelo.
+- Frase gancho generada o editable.
+- Precio, siempre con prefijo **Desde** cuando aplique.
+- CTA con teléfono.
+
+Se eliminaron del arte final las líneas decorativas, badges antiguos, cajas de datos innecesarias, paneles azules y fondos artificiales. La intención actual es que el render sea texto limpio sobre la imagen subida por el usuario, con control visual fino y apariencia premium.
+
+### Catálogo Altta Homes
+
+Se agregó `frontend/src/data/alttaHomesCatalog.js` como catálogo editable por defecto. El usuario puede cargar un producto del catálogo y luego modificar manualmente cada campo desde el panel, sin perder la estructura.
+
+Desarrollos/modelos cargados:
+
+- **Jardines del Sur 6**: Capua, Cedro Plus, Flamboyán, Ceiba, Tabachín, Noni.
+- **La Rioja Residencial 2**: Noni Elite, Noni, Álamo, Fresno Elite.
+- **Lirios Residencial 2**: Cedro Plus.
+
+Notas de datos:
+
+- Los precios se normalizan visualmente con `Desde`.
+- En La Rioja 2 se asumieron los precios corregidos `$4,436,025 MXN` y `$4,294,950 MXN`.
+- En Lirios 2 quedó `Desde preventa` cuando no hay precio cerrado.
+- Pendiente final: cargar logos por desarrollo. Deben existir versiones para AlttaHomes principal, Jardines del Sur 6, Lirios Residencial 2 y La Rioja 2.
+
+### Editor tipo Canva
+
+El preview de Altta ahora permite mover elementos directamente sobre el lienzo:
+
+- Capas movibles: `logo`, `model`, `headline`, `price`, `cta`.
+- Las posiciones se guardan en porcentaje dentro de `alttaLayout`.
+- Hay líneas guía vertical y horizontal al 50% para centrar elementos.
+- El movimiento hace snap suave al centro si la capa queda cerca del 50%.
+- Existe botón para resetear posiciones.
+- La selección queda activa después de arrastrar una capa.
+
+El toolbar de edición se movió a una barra fija arriba del canvas (`altta-fixed-toolbar`) para que no se mueva junto con el texto. Desde ahí se puede editar la capa seleccionada:
+
+- Texto.
+- Color.
+- Tamaño con `-` / `+`.
+- Ancho de caja con `W-` / `W+`.
+- Nudge arriba, abajo, izquierda y derecha.
+
+El cuadro selector del texto se hizo más compacto y adaptable: usa `fit-content`, `maxWidth` por capa y un borde dorado sutil para rodear mejor el tamaño real del texto.
+
+### Frontend actualizado
+
+Archivo principal: `frontend/src/App.jsx`.
+
+Cambios relevantes:
+
+- Importa `ALTTA_HOMES_CATALOG` y `getAlttaProductById`.
+- Nuevo estado para producto, desarrollo, modelo, precio, specs, CTA, teléfono, variantes IA y layout libre.
+- `appendRenderFields()` envía también `altta_layout_json`.
+- El selector de aspecto queda enfocado en `1:1`, `9:16` y `16:9`.
+- Se mantiene la capacidad de editar manualmente lo cargado desde catálogo.
+- Se ocultaron controles antiguos que ya no forman parte del flujo principal, pero no se eliminaron por completo.
+
+Archivo de estilos: `frontend/src/index.css`.
+
+Cambios relevantes:
+
+- Estilos para `.altta-preview-overlay`, `.altta-draggable`, `.altta-center-guide`, `.altta-fixed-toolbar`.
+- Toolbar flotante viejo `.altta-layer-toolbar` queda oculto.
+- Fondo/overlay azul del preview eliminado; ahora el preview muestra imagen + textos.
+- Guías de centro solo son de edición, no deben aparecer en el render exportado.
+
+### Backend actualizado
+
+Archivos tocados:
+
+- `backend/main.py`
+- `backend/image_processor.py`
+- `backend/ai_copywriter.py`
+
+`backend/main.py`:
+
+- `render_ad` acepta campos Altta:
+  - `brand_name`
+  - `developer_name`
+  - `development_name`
+  - `model_name`
+  - `product_type`
+  - `price_text`
+  - `specs_text`
+  - `cta_text`
+  - `phone_text`
+  - `cta_font_size`
+  - `altta_layout_json`
+- Nuevo endpoint `POST /api/altta/product-copy`.
+- Nuevo modelo `AlttaProductCopyRequest`.
+
+`backend/ai_copywriter.py`:
+
+- Nueva función `generate_altta_product_copy(...)`.
+- Usa Gemini `gemini-2.5-flash`.
+- Devuelve `hooks` y `social_posts`.
+- Reglas del prompt:
+  - Hook máximo 9 palabras.
+  - Sin emojis.
+  - No meter precio/specs dentro del hook.
+  - Copy máximo 450 caracteres.
+  - Respetar el precio escrito y el prefijo `Desde`.
+- Tiene fallback local si falta Gemini o falla la API.
+
+`backend/image_processor.py`:
+
+- Nuevo tema `ALTTA_PRODUCT_CARD`.
+- `AdParameters` incluye campos Altta y `altta_layout_json`.
+- Para `ALTTA_PRODUCT_CARD`:
+  - No aplica el overlay oscuro general.
+  - No aplica panel azul.
+  - Renderiza únicamente textos sobre la imagen original.
+  - Lee posiciones `x`, `y`, `width` desde JSON en porcentajes.
+  - Usa colores configurables:
+    - logo: `logo_color_hex`
+    - modelo: `project_color_hex`
+    - frase: `text_color_hex`
+    - precio: `accent_color_hex`
+    - CTA: `body_color_hex`
+  - Usa tamaños configurables:
+    - logo: `super_font_size`
+    - modelo: `project_font_size`
+    - frase: `headline_font_size`
+    - precio: `body_font_size`
+    - CTA: `cta_font_size`
+
+### Validaciones realizadas
+
+Se validó varias veces durante la implementación:
+
+- `npm.cmd run build` pasa. Vite conserva warning de chunk grande mayor a 500 kB.
+- `npm.cmd run lint` pasa.
+- `python -m py_compile backend\main.py backend\ai_copywriter.py backend\image_processor.py` pasa.
+- Smoke tests de render con Pillow usando `backend\.venv\Scripts\python.exe` pasan.
+
+Servidores usados durante pruebas:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000`
+
+### Pendientes del flujo Altta
+
+- Cargar y seleccionar logos por desarrollo.
+- Mejorar resize directo desde esquinas del cuadro selector, estilo Canva.
+- Guardar presets de layout por formato (`1:1`, `9:16`, `16:9`).
+- Definir modos de descarga: normal, 4K/8K o mejora manual.
+- Revisar consistencia visual final entre preview y descarga después de cada nuevo control de edición.
+
+---
+
+_Última actualización del contexto: 16 mayo 2026 - agregado flujo Altta Homes Product Ad Builder, catálogo editable, editor tipo Canva, guías de centrado, render limpio sobre imagen y generación de copy IA._

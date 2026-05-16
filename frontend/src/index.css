@@ -278,6 +278,277 @@ body {
 .align-center { text-align: center; align-items: center; margin-left: auto; margin-right: auto;}
 .align-right { text-align: right; align-items: flex-end; margin-left: auto; }
 
+.altta-preview-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 7%;
+  color: #fff;
+  background: transparent;
+}
+
+.altta-draggable {
+  position: absolute;
+  display: inline-block;
+  box-sizing: border-box;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 3px 8px;
+  white-space: normal;
+  overflow-wrap: normal;
+}
+
+.altta-draggable:hover {
+  border-color: rgba(214, 184, 79, 0.65);
+  background: rgba(3, 18, 33, 0.16);
+}
+
+.altta-draggable.selected {
+  border-color: #d6b84f;
+  background: rgba(3, 18, 33, 0.18);
+  box-shadow: 0 0 0 1px rgba(214, 184, 79, 0.35), 0 10px 24px rgba(0,0,0,0.22);
+}
+
+.altta-draggable:active {
+  cursor: grabbing;
+  border-color: rgba(214, 184, 79, 0.95);
+}
+
+.altta-layer-toolbar {
+  display: none !important;
+}
+
+.altta-fixed-toolbar {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(92%, 760px);
+  padding: 7px;
+  background: rgba(12, 14, 18, 0.92);
+  border: 1px solid rgba(214, 184, 79, 0.48);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+  backdrop-filter: blur(10px);
+}
+
+.altta-layer-name {
+  color: #d6b84f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.altta-layer-text {
+  width: 210px;
+  max-width: 28vw;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #fff;
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+}
+
+.altta-layer-color {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+}
+
+.altta-layer-toolbar button,
+.altta-fixed-toolbar button {
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 7px;
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.altta-layer-toolbar button:hover,
+.altta-fixed-toolbar button:hover {
+  border-color: rgba(214, 184, 79, 0.7);
+  color: #d6b84f;
+}
+
+.altta-center-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0.28;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.altta-center-guide.active {
+  opacity: 0.95;
+  background: #d6b84f;
+  box-shadow: 0 0 12px rgba(214, 184, 79, 0.8);
+}
+
+.altta-center-guide.vertical {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.altta-center-guide.horizontal {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+
+.altta-preview-top,
+.altta-preview-bottom {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  font-size: 1.2vh;
+}
+
+.altta-preview-brand {
+  color: #d6b84f;
+  font-weight: 600;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+.altta-preview-development {
+  color: rgba(255,255,255,0.72);
+  font-size: 1vh;
+  margin-top: 0.25vh;
+}
+
+.altta-preview-badge {
+  background: #d6b84f;
+  color: #031221;
+  border-radius: 999px;
+  padding: 0.45vh 1.1vh;
+  font-size: 0.9vh;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.altta-preview-copy {
+  width: 86%;
+  max-width: 900px;
+  margin: 29% auto auto;
+  text-align: center;
+}
+
+.altta-preview-line {
+  height: 1px;
+  width: 100%;
+  background: rgba(214, 184, 79, 0.35);
+  margin: 2.4vh 0;
+  opacity: 0.46;
+}
+
+.altta-preview-type {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  color: rgba(255,255,255,0.66);
+  font-size: 1.2vh;
+}
+
+.altta-preview-model {
+  color: #d6b84f;
+  font-weight: 800;
+  font-size: 1.35vh;
+  margin-bottom: 3.1vh;
+}
+
+.altta-preview-headline {
+  font-family: 'Playfair Display', serif;
+  line-height: 1.08;
+  font-weight: 700;
+  margin-bottom: 3.2vh;
+  text-shadow: 0 3px 18px rgba(0,0,0,0.72);
+}
+
+.altta-preview-price {
+  font-family: 'Playfair Display', serif;
+  color: #d6b84f;
+  font-weight: 700;
+  text-shadow: 0 3px 18px rgba(0,0,0,0.72);
+}
+
+.altta-preview-specs {
+  margin-top: 1vh;
+  color: rgba(255,255,255,0.78);
+  font-size: 1.25vh;
+}
+
+.altta-preview-bottom {
+  justify-content: center;
+  color: rgba(255,255,255,0.75);
+  font-size: 1.15vh;
+  gap: 2vh;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+  display: flex;
+  white-space: nowrap;
+}
+
+.altta-align-left .altta-preview-top,
+.altta-align-left .altta-preview-bottom {
+  justify-content: flex-start;
+}
+
+.altta-align-left .altta-preview-copy {
+  margin-left: 0;
+  margin-right: auto;
+  text-align: left;
+}
+
+.altta-align-left .altta-draggable {
+  text-align: left;
+}
+
+.altta-align-right .altta-preview-top,
+.altta-align-right .altta-preview-bottom {
+  justify-content: flex-end;
+}
+
+.altta-align-right .altta-preview-copy {
+  margin-left: auto;
+  margin-right: 0;
+  text-align: right;
+}
+
+.altta-align-right .altta-draggable {
+  text-align: right;
+}
+
+.altta-align-center .altta-preview-copy {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.altta-align-center .altta-draggable {
+  text-align: center;
+}
+
 /* Loader overlay */
 .loader-overlay {
   position: absolute;

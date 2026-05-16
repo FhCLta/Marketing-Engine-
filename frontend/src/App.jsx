@@ -5,6 +5,7 @@ import './index.css'
 // Firebase Imports
 import { getProjects, seedInitialProjects, addProject } from './services/firestoreService'
 import { INITIAL_PROJECTS } from './data/initialProjects'
+import { ALTTA_HOMES_CATALOG, getAlttaProductById } from './data/alttaHomesCatalog'
 
 // Page Components
 import ImageStudio from './pages/ImageStudio'
@@ -70,6 +71,27 @@ function App() {
   const [imagePrompt, setImagePrompt] = useState("")
   const [projectContext, setProjectContext] = useState("")
   const [projectLocation, setProjectLocation] = useState("")
+  const [selectedAlttaProductId, setSelectedAlttaProductId] = useState('jds6-capua')
+  const [alttaDevelopment, setAlttaDevelopment] = useState('Jardines del Sur 6')
+  const [alttaModel, setAlttaModel] = useState('Capua')
+  const [alttaProductType, setAlttaProductType] = useState('Departamento')
+  const [alttaPrice, setAlttaPrice] = useState('Desde $1,853,830 MXN')
+  const [alttaSpecs, setAlttaSpecs] = useState('85.34 m2 · 3 Rec · 2 Banos')
+  const [alttaBadge, setAlttaBadge] = useState('Grupo Sadasi')
+  const [alttaCta, setAlttaCta] = useState('Agenda tu cita')
+  const [alttaPhone, setAlttaPhone] = useState('998 385 1133')
+  const [alttaCopyVariants, setAlttaCopyVariants] = useState([])
+  const [currentAlttaVariantIndex, setCurrentAlttaVariantIndex] = useState(0)
+  const [ctaFontSize, setCtaFontSize] = useState(1.2)
+  const [alttaLayout, setAlttaLayout] = useState({
+    logo: { x: 50, y: 14, width: 42 },
+    model: { x: 50, y: 52, width: 70 },
+    headline: { x: 50, y: 62, width: 92 },
+    price: { x: 50, y: 75, width: 72 },
+    cta: { x: 50, y: 86, width: 72 },
+  })
+  const [activeAlttaLayer, setActiveAlttaLayer] = useState(null)
+  const [selectedAlttaLayer, setSelectedAlttaLayer] = useState(null)
   const [socialVariants, setSocialVariants] = useState([])
   const [currentVariantIndex, setCurrentVariantIndex] = useState(0)
   const [showSocialModal, setShowSocialModal] = useState(false)
@@ -77,9 +99,9 @@ function App() {
   // Ad Copy State
   const [adVariants, setAdVariants] = useState([])
   const [currentAdVariantIndex, setCurrentAdVariantIndex] = useState(0)
-  const [superHeadline, setSuperHeadline] = useState("ULTRA LUXURY LIVING")
-  const [mainHeadline, setMainHeadline] = useState("Tu Refugio de Inversión y Bienestar")
-  const [bodyText, setBodyText] = useState("Invierte en el futuro del Caribe Mexicano con los más altos estándares de calidad y exclusividad.")
+  const [superHeadline, setSuperHeadline] = useState("AlttaHomes")
+  const [mainHeadline, setMainHeadline] = useState("Tu hogar en Cancun con alberca y amenidades")
+  const [bodyText, setBodyText] = useState("")
   
   // Copy Tone Selector
   const [copyTone, setCopyTone] = useState("balanced")
@@ -95,10 +117,10 @@ function App() {
   const [layout, setLayout] = useState("center")
   
   // Font Size Controls (vh units for preview, sent as multiplier to backend)
-  const [superFontSize, setSuperFontSize] = useState(1.4)       // Super headline badge
-  const [projectFontSize, setProjectFontSize] = useState(4.0)   // Project name HERO
-  const [headlineFontSize, setHeadlineFontSize] = useState(2.8) // Tagline
-  const [bodyFontSize, setBodyFontSize] = useState(1.8)         // Body text
+  const [superFontSize, setSuperFontSize] = useState(1.4)       // Altta logo/brand
+  const [projectFontSize, setProjectFontSize] = useState(1.6)   // Model label
+  const [headlineFontSize, setHeadlineFontSize] = useState(4.2) // Hook phrase
+  const [bodyFontSize, setBodyFontSize] = useState(2.2)         // Price
   
   // Granular Color Controls (replaces fixed themes)
   const [accentColor, _setAccentColor] = useState("#d4af37")
@@ -131,9 +153,230 @@ function App() {
   // 8K Export Settings
   const [outputQuality, setOutputQuality] = useState("8k")
   const [outputFormat, setOutputFormat] = useState("jpeg")
-  const [aspectRatio, setAspectRatio] = useState("original")
+  const [aspectRatio, setAspectRatio] = useState("1:1")
 
   const fileInputRef = useRef(null)
+  const previewRef = useRef(null)
+
+  const selectedAlttaProduct = getAlttaProductById(selectedAlttaProductId)
+
+  const normalizeAlttaPrice = (value) => {
+    const clean = (value || '').trim()
+    if (!clean) return ''
+    return clean.toLowerCase().startsWith('desde') ? clean : `Desde ${clean}`
+  }
+
+  const buildAlttaContext = () => {
+    const productContext = selectedAlttaProduct?.context || ''
+    return [
+      productContext,
+      `Empresa: Altta Homes.`,
+      `Desarrollo: ${alttaDevelopment}.`,
+      `Modelo: ${alttaModel}.`,
+      `Tipo: ${alttaProductType}.`,
+      `Precio: ${normalizeAlttaPrice(alttaPrice)}.`,
+      `Especificaciones: ${alttaSpecs}.`,
+      `CTA: ${alttaCta}.`,
+      `Telefono: ${alttaPhone}.`
+    ].filter(Boolean).join(' ')
+  }
+
+  const applyAlttaProduct = (product) => {
+    if (!product) return
+    setSelectedAlttaProductId(product.id)
+    setAlttaDevelopment(product.development)
+    setAlttaModel(product.model)
+    setAlttaProductType(product.productType)
+    setAlttaPrice(normalizeAlttaPrice(product.price))
+    setAlttaSpecs(product.specs)
+    setAlttaBadge(product.badge)
+    setAlttaCta(product.cta)
+    setAlttaPhone(product.phone)
+    setProjectContext(product.development)
+    setProjectLocation('Cancun, Quintana Roo')
+    setSuperHeadline('AlttaHomes')
+    setMainHeadline(product.defaultHook)
+    setBodyText('')
+    setAccentColor('#d6b84f')
+    setProjectColor('#ffffff')
+    setTextColor('#ffffff')
+    setBodyColor('#ffffff')
+    setLogoColor('#d6b84f')
+    setLineColor('#d6b84f')
+    setLayout('center')
+    setRenderedImage(null)
+  }
+
+  const resetAlttaLayout = () => {
+    setAlttaLayout({
+      logo: { x: 50, y: 14, width: 42 },
+      model: { x: 50, y: 52, width: 70 },
+      headline: { x: 50, y: 62, width: 92 },
+      price: { x: 50, y: 75, width: 72 },
+      cta: { x: 50, y: 86, width: 72 },
+    })
+    setRenderedImage(null)
+  }
+
+  const startAlttaDrag = (key, event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setSelectedAlttaLayer(key)
+    setActiveAlttaLayer(key)
+    const rect = previewRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const move = (e) => {
+      let x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))
+      let y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100))
+      if (Math.abs(x - 50) < 1.2) x = 50
+      if (Math.abs(y - 50) < 1.2) y = 50
+      setAlttaLayout(prev => ({
+        ...prev,
+        [key]: { ...prev[key], x: Number(x.toFixed(2)), y: Number(y.toFixed(2)) }
+      }))
+      setRenderedImage(null)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      setActiveAlttaLayer(null)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    move(event)
+  }
+
+  const alttaLayerStyle = (key, extra = {}) => {
+    const layer = alttaLayout[key]
+    return {
+      left: `${layer.x}%`,
+      top: `${layer.y}%`,
+      width: 'fit-content',
+      maxWidth: `${layer.width}%`,
+      transform: 'translate(-50%, -50%)',
+      ...extra
+    }
+  }
+
+  const activeLayerPosition = activeAlttaLayer ? alttaLayout[activeAlttaLayer] : null
+  const selectedLayerPosition = selectedAlttaLayer ? alttaLayout[selectedAlttaLayer] : null
+
+  const getSelectedLayerConfig = () => {
+    const configs = {
+      logo: {
+        label: 'Logo',
+        text: superHeadline,
+        setText: setSuperHeadline,
+        color: logoColor,
+        setColor: setLogoColor,
+        size: superFontSize,
+        setSize: setSuperFontSize,
+      },
+      model: {
+        label: 'Modelo',
+        text: alttaModel,
+        setText: setAlttaModel,
+        color: projectColor,
+        setColor: setProjectColor,
+        size: projectFontSize,
+        setSize: setProjectFontSize,
+      },
+      headline: {
+        label: 'Frase',
+        text: mainHeadline,
+        setText: setMainHeadline,
+        color: textColor,
+        setColor: setTextColor,
+        size: headlineFontSize,
+        setSize: setHeadlineFontSize,
+      },
+      price: {
+        label: 'Precio',
+        text: alttaPrice,
+        setText: (value) => setAlttaPrice(normalizeAlttaPrice(value)),
+        color: accentColor,
+        setColor: setAccentColor,
+        size: bodyFontSize,
+        setSize: setBodyFontSize,
+      },
+      cta: {
+        label: 'CTA',
+        text: `${alttaCta} - ${alttaPhone}`,
+        setText: (value) => {
+          const [ctaValue, ...phoneParts] = value.split('-')
+          setAlttaCta(ctaValue.trim())
+          setAlttaPhone(phoneParts.join('-').trim())
+        },
+        color: bodyColor,
+        setColor: setBodyColor,
+        size: ctaFontSize,
+        setSize: setCtaFontSize,
+      },
+    }
+    return selectedAlttaLayer ? configs[selectedAlttaLayer] : null
+  }
+
+  const updateSelectedLayerWidth = (delta) => {
+    if (!selectedAlttaLayer) return
+    setAlttaLayout(prev => ({
+      ...prev,
+      [selectedAlttaLayer]: {
+        ...prev[selectedAlttaLayer],
+        width: Math.max(12, Math.min(100, Number((prev[selectedAlttaLayer].width + delta).toFixed(2))))
+      }
+    }))
+    setRenderedImage(null)
+  }
+
+  const nudgeSelectedLayer = (dx, dy) => {
+    if (!selectedAlttaLayer) return
+    setAlttaLayout(prev => ({
+      ...prev,
+      [selectedAlttaLayer]: {
+        ...prev[selectedAlttaLayer],
+        x: Math.max(0, Math.min(100, Number((prev[selectedAlttaLayer].x + dx).toFixed(2)))),
+        y: Math.max(0, Math.min(100, Number((prev[selectedAlttaLayer].y + dy).toFixed(2)))),
+      }
+    }))
+    setRenderedImage(null)
+  }
+
+  const selectedLayerConfig = getSelectedLayerConfig()
+
+  const appendRenderFields = (formData, format) => {
+    formData.append("super_headline", superHeadline)
+    formData.append("main_headline", mainHeadline)
+    formData.append("body_text", bodyText)
+    formData.append("project_name", projectContext)
+    formData.append("location", projectLocation)
+    formData.append("layout", layout)
+    formData.append("theme", "ALTTA_PRODUCT_CARD")
+    formData.append("output_quality", outputQuality)
+    formData.append("output_format", format)
+    formData.append("color_enhance", "true")
+    formData.append("aspect_ratio", aspectRatio)
+    formData.append("accent_color_hex", accentColor)
+    formData.append("project_color_hex", projectColor)
+    formData.append("text_color_hex", textColor)
+    formData.append("body_color_hex", bodyColor)
+    formData.append("logo_color_hex", logoColor)
+    formData.append("line_color_hex", lineColor)
+    formData.append("super_font_size", superFontSize.toString())
+    formData.append("project_font_size", projectFontSize.toString())
+    formData.append("headline_font_size", headlineFontSize.toString())
+    formData.append("body_font_size", bodyFontSize.toString())
+    formData.append("cta_font_size", ctaFontSize.toString())
+    formData.append("altta_layout_json", JSON.stringify(alttaLayout))
+    formData.append("brand_name", superHeadline || "AlttaHomes")
+    formData.append("developer_name", alttaBadge)
+    formData.append("development_name", alttaDevelopment)
+    formData.append("model_name", alttaModel)
+    formData.append("product_type", alttaProductType)
+    formData.append("price_text", normalizeAlttaPrice(alttaPrice))
+    formData.append("specs_text", alttaSpecs)
+    formData.append("cta_text", alttaCta)
+    formData.append("phone_text", alttaPhone)
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // FIREBASE: Load projects on mount
@@ -245,27 +488,7 @@ function App() {
         const blob = await res.blob()
         formData.append("image", blob)
       }
-      formData.append("super_headline", superHeadline)
-      formData.append("main_headline", mainHeadline)
-      formData.append("body_text", bodyText)
-      formData.append("project_name", projectContext)
-      formData.append("location", projectLocation)
-      formData.append("layout", layout)
-      formData.append("theme", "GOLDEN_LEGACY")
-      formData.append("output_quality", outputQuality)
-      formData.append("output_format", "jpeg")
-      formData.append("color_enhance", "true")
-      formData.append("aspect_ratio", aspectRatio)
-      formData.append("accent_color_hex", accentColor)
-      formData.append("project_color_hex", projectColor)
-      formData.append("text_color_hex", textColor)
-      formData.append("body_color_hex", bodyColor)
-      formData.append("logo_color_hex", logoColor)
-      formData.append("line_color_hex", lineColor)
-      formData.append("super_font_size", superFontSize.toString())
-      formData.append("project_font_size", projectFontSize.toString())
-      formData.append("headline_font_size", headlineFontSize.toString())
-      formData.append("body_font_size", bodyFontSize.toString())
+      appendRenderFields(formData, "jpeg")
 
       const response = await fetch(`${API_BASE_URL}/api/render-ad`, {
         method: "POST",
@@ -385,6 +608,76 @@ function App() {
     }
   }
 
+  const handleGenerateAlttaCopy = async () => {
+    if(!alttaDevelopment || !alttaModel) return alert("Selecciona o escribe un desarrollo y modelo primero.")
+    setLoading(true)
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/altta/product-copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          development: alttaDevelopment,
+          model_name: alttaModel,
+          product_type: alttaProductType,
+          price_text: normalizeAlttaPrice(alttaPrice),
+          specs_text: alttaSpecs,
+          cta_text: alttaCta,
+          context: buildAlttaContext(),
+          hashtags: ""
+        })
+      })
+      const data = await resp.json()
+      if (data.success && data.hooks?.length) {
+        setAlttaCopyVariants(data.hooks)
+        setCurrentAlttaVariantIndex(0)
+        setMainHeadline(data.hooks[0])
+        if (data.social_posts?.length) {
+          setSocialVariants(data.social_posts)
+        }
+      } else {
+        alert(data.error || "No se pudo generar copy de Altta.")
+      }
+    } catch (err) {
+      console.error(err)
+      alert(`Error de conexion: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGenerateAlttaSocialCopy = async () => {
+    setLoading(true)
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/altta/product-copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          development: alttaDevelopment,
+          model_name: alttaModel,
+          product_type: alttaProductType,
+          price_text: normalizeAlttaPrice(alttaPrice),
+          specs_text: alttaSpecs,
+          cta_text: alttaCta,
+          context: buildAlttaContext(),
+          hashtags: ""
+        })
+      })
+      const data = await resp.json()
+      if (data.success && data.social_posts?.length) {
+        setSocialVariants(data.social_posts)
+        setCurrentVariantIndex(0)
+        setShowSocialModal(true)
+      } else {
+        alert(data.error || "No se pudo generar copy para publicacion.")
+      }
+    } catch (err) {
+      console.error(err)
+      alert(`Error de conexion: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleGenerateSocialCopy = async () => {
     if(!projectContext) return alert("Ingresa el nombre del proyecto o sube una imagen primero.")
     setLoading(true)
@@ -438,27 +731,7 @@ function App() {
         const blob = await res.blob()
         formData.append("image", blob)
       }
-      formData.append("super_headline", superHeadline)
-      formData.append("main_headline", mainHeadline)
-      formData.append("body_text", bodyText)
-      formData.append("project_name", projectContext)
-      formData.append("location", projectLocation)
-      formData.append("layout", layout)
-      formData.append("theme", "GOLDEN_LEGACY")
-      formData.append("output_quality", outputQuality)
-      formData.append("output_format", outputFormat)
-      formData.append("color_enhance", "true")
-      formData.append("aspect_ratio", aspectRatio)
-      formData.append("accent_color_hex", accentColor)
-      formData.append("project_color_hex", projectColor)
-      formData.append("text_color_hex", textColor)
-      formData.append("body_color_hex", bodyColor)
-      formData.append("logo_color_hex", logoColor)
-      formData.append("line_color_hex", lineColor)
-      formData.append("super_font_size", superFontSize.toString())
-      formData.append("project_font_size", projectFontSize.toString())
-      formData.append("headline_font_size", headlineFontSize.toString())
-      formData.append("body_font_size", bodyFontSize.toString())
+      appendRenderFields(formData, outputFormat)
 
       const response = await fetch(`${API_BASE_URL}/api/render-ad`, {
         method: "POST",
@@ -602,8 +875,78 @@ function App() {
           </div>
         )}
 
+        <div className="form-group glass-card" style={{ padding: '14px', borderRadius: '12px', border: '1px solid rgba(214,184,79,0.25)' }}>
+          <label className="form-label" style={{ color: '#d6b84f', fontWeight: 700 }}>
+            ALTTA HOMES - CATALOGO
+          </label>
+          <select
+            className="form-select"
+            value={selectedAlttaProductId}
+            onChange={(e) => applyAlttaProduct(getAlttaProductById(e.target.value))}
+            style={{ marginBottom: '10px' }}
+          >
+            {ALTTA_HOMES_CATALOG.map(item => (
+              <option key={item.id} value={item.id}>
+                {item.development} - {item.model}
+              </option>
+            ))}
+          </select>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+            <input className="form-input" value={alttaDevelopment} onChange={(e) => { setAlttaDevelopment(e.target.value); setProjectContext(e.target.value); setRenderedImage(null) }} placeholder="Desarrollo" />
+            <input className="form-input" value={alttaModel} onChange={(e) => { setAlttaModel(e.target.value); setRenderedImage(null) }} placeholder="Modelo" />
+          </div>
+          <div style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+            <input className="form-input" value={alttaProductType} onChange={(e) => { setAlttaProductType(e.target.value); setRenderedImage(null) }} placeholder="Tipo" />
+            <input className="form-input" value={alttaBadge} onChange={(e) => { setAlttaBadge(e.target.value); setRenderedImage(null) }} placeholder="Badge" />
+          </div>
+          <input
+            className="form-input"
+            value={alttaPrice}
+            onChange={(e) => { setAlttaPrice(normalizeAlttaPrice(e.target.value)); setRenderedImage(null) }}
+            placeholder="Desde $0 MXN"
+            style={{ marginBottom: '8px' }}
+          />
+          <input
+            className="form-input"
+            value={alttaSpecs}
+            onChange={(e) => { setAlttaSpecs(e.target.value); setRenderedImage(null) }}
+            placeholder="m2 · Rec · Banos"
+            style={{ marginBottom: '8px' }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+            <input className="form-input" value={alttaCta} onChange={(e) => { setAlttaCta(e.target.value); setRenderedImage(null) }} placeholder="CTA" />
+            <input className="form-input" value={alttaPhone} onChange={(e) => { setAlttaPhone(e.target.value); setRenderedImage(null) }} placeholder="Telefono" />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-ai" style={{ flex: 1, padding: '9px', animation: 'none' }} onClick={handleGenerateAlttaCopy}>
+              Frase IA
+            </button>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '9px', border: '1px solid #d6b84f', color: '#d6b84f' }} onClick={handleGenerateAlttaSocialCopy}>
+              Copy Post
+            </button>
+          </div>
+          {alttaCopyVariants.length > 0 && (
+            <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {alttaCopyVariants.map((hook, idx) => (
+                <button
+                  key={hook}
+                  className={`btn ${currentAlttaVariantIndex === idx ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ width: 'auto', padding: '6px 8px', fontSize: '0.72rem' }}
+                  onClick={() => {
+                    setCurrentAlttaVariantIndex(idx)
+                    setMainHeadline(hook)
+                    setRenderedImage(null)
+                  }}
+                >
+                  Frase {idx + 1}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* SELECTOR DE PROYECTOS DINÁMICO (Firebase) */}
-        <div className="form-group" style={{ background: 'rgba(212,175,55,0.05)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(212,175,55,0.2)' }}>
+        <div className="form-group" style={{ display: 'none', background: 'rgba(212,175,55,0.05)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(212,175,55,0.2)' }}>
           <label className="form-label" style={{ color: '#d4af37', fontWeight: 'bold', fontSize: '0.75rem', letterSpacing: '1px' }}>
             📁 PROYECTO
           </label>
@@ -667,7 +1010,7 @@ function App() {
         </div>
 
         {/* SELECTOR DE TONO PARA COPY */}
-        <div className="form-group" style={{ marginBottom: '12px' }}>
+        <div className="form-group" style={{ display: 'none', marginBottom: '12px' }}>
           <label className="form-label" style={{ fontSize: '0.7rem', color: '#a78bfa', letterSpacing: '1px' }}>
             🎯 TONO DEL COPY
           </label>
@@ -695,7 +1038,7 @@ function App() {
           </p>
         </div>
 
-        <div className="form-group" style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+        <div className="form-group" style={{ display: 'none', gap: '8px', marginBottom: '8px' }}>
           <button className="btn btn-ai" style={{ flex: 1 }} onClick={handleGenerateCopy}>
             ✨ Textos Ad
           </button>
@@ -743,7 +1086,7 @@ function App() {
         )}
 
         <div className="form-group">
-          <label className="form-label">Super Headline</label>
+          <label className="form-label">Logo / Marca</label>
           <input 
             type="text" 
             className="form-input" 
@@ -753,7 +1096,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Main Headline</label>
+          <label className="form-label">Frase gancho</label>
           <input 
             type="text" 
             className="form-input" 
@@ -763,7 +1106,7 @@ function App() {
           />
         </div>
 
-        <div className="form-group">
+        <div className="form-group" style={{ display: 'none' }}>
           <label className="form-label">Body Text</label>
           <textarea 
             className="form-textarea" 
@@ -780,7 +1123,7 @@ function App() {
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Badge</span>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Logo</span>
               <input 
                 type="range" 
                 min="0.8" max="3" step="0.1"
@@ -792,10 +1135,10 @@ function App() {
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Proyecto</span>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Modelo</span>
               <input 
                 type="range" 
-                min="2" max="7" step="0.2"
+                min="0.9" max="3" step="0.1"
                 value={projectFontSize}
                 onChange={(e) => setProjectFontSize(parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
@@ -804,10 +1147,10 @@ function App() {
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Tagline</span>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Frase</span>
               <input 
                 type="range" 
-                min="1.5" max="5" step="0.2"
+                min="2" max="7" step="0.2"
                 value={headlineFontSize}
                 onChange={(e) => setHeadlineFontSize(parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
@@ -816,15 +1159,27 @@ function App() {
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Body</span>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>Precio</span>
               <input 
                 type="range" 
-                min="1" max="3" step="0.1"
+                min="1.4" max="4" step="0.1"
                 value={bodyFontSize}
                 onChange={(e) => setBodyFontSize(parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: '#d4af37' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{bodyFontSize}vh</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#888', width: '60px' }}>CTA</span>
+              <input 
+                type="range" 
+                min="0.8" max="2.5" step="0.1"
+                value={ctaFontSize}
+                onChange={(e) => setCtaFontSize(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: '#d4af37' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: '#d4af37', width: '35px' }}>{ctaFontSize}vh</span>
             </div>
           </div>
         </div>
@@ -835,11 +1190,10 @@ function App() {
           <div className="color-control-grid">
             {[
               { label: 'Logo', value: logoColor, setter: setLogoColor },
-              { label: 'Acento', value: accentColor, setter: setAccentColor },
-              { label: 'Línea', value: lineColor, setter: setLineColor },
-              { label: 'Proyecto', value: projectColor, setter: setProjectColor },
-              { label: 'Texto', value: textColor, setter: setTextColor },
-              { label: 'Body', value: bodyColor, setter: setBodyColor },
+              { label: 'Precio', value: accentColor, setter: setAccentColor },
+              { label: 'Modelo', value: projectColor, setter: setProjectColor },
+              { label: 'Frase', value: textColor, setter: setTextColor },
+              { label: 'CTA', value: bodyColor, setter: setBodyColor },
             ].map(ctrl => (
               <div key={ctrl.label} className="color-control">
                 <div className="color-control-header">
@@ -875,6 +1229,13 @@ function App() {
             <option value="center">Centro</option>
             <option value="right">Derecha</option>
           </select>
+          <button
+            className="btn btn-secondary"
+            style={{ marginTop: '8px', padding: '8px', border: '1px solid rgba(212,175,55,0.45)', color: '#d4af37' }}
+            onClick={resetAlttaLayout}
+          >
+            Resetear posiciones
+          </button>
         </div>
 
         <div className="form-group" style={{ paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
@@ -899,10 +1260,8 @@ function App() {
           <div style={{ marginTop: '8px' }}>
             <label className="form-label">Proporción</label>
             <select className="form-select" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
-              <option value="original">📷 Original</option>
               <option value="1:1">⬜ Cuadrado (1:1) — Feed</option>
               <option value="9:16">📱 Reel / Story (9:16)</option>
-              <option value="4:5">📐 Retrato (4:5) — IG Post</option>
               <option value="16:9">🖥️ Paisaje (16:9) — YouTube</option>
             </select>
           </div>
@@ -942,18 +1301,45 @@ function App() {
           </button>
         </div>
 
+        {selectedLayerConfig && (
+          <div
+            className="altta-fixed-toolbar"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="altta-layer-name">{selectedLayerConfig.label}</span>
+            <input
+              className="altta-layer-text"
+              value={selectedLayerConfig.text}
+              onChange={(e) => {
+                selectedLayerConfig.setText(e.target.value)
+                setRenderedImage(null)
+              }}
+            />
+            <input
+              className="altta-layer-color"
+              type="color"
+              value={selectedLayerConfig.color}
+              onChange={(e) => selectedLayerConfig.setColor(e.target.value)}
+            />
+            <button onClick={() => selectedLayerConfig.setSize(Math.max(0.6, Number((selectedLayerConfig.size - 0.1).toFixed(1))))}>-</button>
+            <button onClick={() => selectedLayerConfig.setSize(Number((selectedLayerConfig.size + 0.1).toFixed(1)))}>+</button>
+            <button onClick={() => updateSelectedLayerWidth(-4)}>W-</button>
+            <button onClick={() => updateSelectedLayerWidth(4)}>W+</button>
+            <button onClick={() => nudgeSelectedLayer(0, -1)}>↑</button>
+            <button onClick={() => nudgeSelectedLayer(0, 1)}>↓</button>
+            <button onClick={() => nudgeSelectedLayer(-1, 0)}>←</button>
+            <button onClick={() => nudgeSelectedLayer(1, 0)}>→</button>
+          </div>
+        )}
+
         <div className="canvas-container">
           {renderedImage ? (
             <img src={renderedImage} alt="Real Preview" className="image-preview" />
           ) : imageSrc ? (
             <>
               <img src={imageSrc} alt="Preview" className="image-preview" />
-              <div style={{
-                position:'absolute', top:0, left:0, right:0, bottom:0,
-                background: 'linear-gradient(to bottom, rgba(15,20,25,0.8) 0%, transparent 20%, transparent 50%, rgba(15,20,25,0.95) 100%)'
-              }} />
-              
-              <div className={`layout-preview-overlay align-${layout}`}>
+              <div className={`layout-preview-overlay align-${layout}`} style={{ display: 'none' }}>
                 <div style={{
                   width: '100%', 
                   display: 'flex', 
@@ -1037,6 +1423,88 @@ function App() {
                     {bodyText}
                   </div>
                 </div>
+              </div>
+              <div ref={previewRef} className={`altta-preview-overlay altta-align-${layout}`}>
+                {activeLayerPosition && (
+                  <>
+                    <div className={`altta-center-guide vertical ${Math.abs(activeLayerPosition.x - 50) <= 1.2 ? 'active' : ''}`} />
+                    <div className={`altta-center-guide horizontal ${Math.abs(activeLayerPosition.y - 50) <= 1.2 ? 'active' : ''}`} />
+                  </>
+                )}
+                <div
+                  className={`altta-draggable altta-preview-brand ${selectedAlttaLayer === 'logo' ? 'selected' : ''}`}
+                  onPointerDown={(e) => startAlttaDrag('logo', e)}
+                  style={alttaLayerStyle('logo', { color: logoColor, fontSize: `${superFontSize}vh` })}
+                >
+                    {superHeadline}
+                </div>
+                <div
+                  className={`altta-draggable altta-preview-model ${selectedAlttaLayer === 'model' ? 'selected' : ''}`}
+                  onPointerDown={(e) => startAlttaDrag('model', e)}
+                  style={alttaLayerStyle('model', { color: projectColor, fontSize: `${projectFontSize}vh` })}
+                >
+                    Modelo {alttaModel}
+                </div>
+                <div
+                  className={`altta-draggable altta-preview-headline ${selectedAlttaLayer === 'headline' ? 'selected' : ''}`}
+                  onPointerDown={(e) => startAlttaDrag('headline', e)}
+                  style={alttaLayerStyle('headline', { color: textColor, fontSize: `${headlineFontSize}vh` })}
+                >
+                    {mainHeadline.split('\n').map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))}
+                </div>
+                <div
+                  className={`altta-draggable altta-preview-price ${selectedAlttaLayer === 'price' ? 'selected' : ''}`}
+                  onPointerDown={(e) => startAlttaDrag('price', e)}
+                  style={alttaLayerStyle('price', { color: accentColor, fontSize: `${bodyFontSize}vh` })}
+                >
+                    {normalizeAlttaPrice(alttaPrice)}
+                </div>
+                <div
+                  className={`altta-draggable altta-preview-bottom ${selectedAlttaLayer === 'cta' ? 'selected' : ''}`}
+                  onPointerDown={(e) => startAlttaDrag('cta', e)}
+                  style={alttaLayerStyle('cta', { color: bodyColor, fontSize: `${ctaFontSize}vh` })}
+                >
+                  <span>{alttaCta}</span>
+                  <span>{alttaPhone}</span>
+                </div>
+                {selectedLayerConfig && selectedLayerPosition && (
+                  <div
+                    className="altta-layer-toolbar"
+                    style={{
+                      left: `${selectedLayerPosition.x}%`,
+                      top: `${Math.max(4, selectedLayerPosition.y - 9)}%`,
+                      transform: 'translate(-50%, -100%)'
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="altta-layer-name">{selectedLayerConfig.label}</span>
+                    <input
+                      className="altta-layer-text"
+                      value={selectedLayerConfig.text}
+                      onChange={(e) => {
+                        selectedLayerConfig.setText(e.target.value)
+                        setRenderedImage(null)
+                      }}
+                    />
+                    <input
+                      className="altta-layer-color"
+                      type="color"
+                      value={selectedLayerConfig.color}
+                      onChange={(e) => selectedLayerConfig.setColor(e.target.value)}
+                    />
+                    <button onClick={() => selectedLayerConfig.setSize(Math.max(0.6, Number((selectedLayerConfig.size - 0.1).toFixed(1))))}>-</button>
+                    <button onClick={() => selectedLayerConfig.setSize(Number((selectedLayerConfig.size + 0.1).toFixed(1)))}>+</button>
+                    <button onClick={() => updateSelectedLayerWidth(-4)}>W-</button>
+                    <button onClick={() => updateSelectedLayerWidth(4)}>W+</button>
+                    <button onClick={() => nudgeSelectedLayer(0, -1)}>↑</button>
+                    <button onClick={() => nudgeSelectedLayer(0, 1)}>↓</button>
+                    <button onClick={() => nudgeSelectedLayer(-1, 0)}>←</button>
+                    <button onClick={() => nudgeSelectedLayer(1, 0)}>→</button>
+                  </div>
+                )}
               </div>
             </>
           ) : (

@@ -1,5 +1,6 @@
 import os
 import platform
+import json
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 
@@ -85,6 +86,13 @@ BRAND_THEMES = {
         "body": (52, 58, 64, 255),        # SLATE
         "vignette": (249, 247, 242, 120), # Light vignette
         "font_family": "serif"
+    },
+    "ALTTA_PRODUCT_CARD": {
+        "accent": (214, 184, 79, 255),
+        "headline": (255, 255, 255, 255),
+        "body": (215, 221, 229, 255),
+        "vignette": (4, 18, 32, 210),
+        "font_family": "serif"
     }
 }
 
@@ -121,6 +129,19 @@ class AdParameters(BaseModel):
     project_font_size: float = 4.0    # Project name HERO
     headline_font_size: float = 2.8   # Tagline
     body_font_size: float = 1.8       # Body text
+    cta_font_size: float = 1.2        # CTA/footer
+
+    # Altta Homes product template fields
+    brand_name: str = ""
+    developer_name: str = ""
+    development_name: str = ""
+    model_name: str = ""
+    product_type: str = ""
+    price_text: str = ""
+    specs_text: str = ""
+    cta_text: str = ""
+    phone_text: str = ""
+    altta_layout_json: str = ""
     
     # Legacy overrides
     accent_override: str = None
@@ -327,7 +348,8 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
         alpha = int((progress ** 1.0) * 245)
         draw_grad.line([(0, y), (width, y)], fill=(5, 8, 15, alpha))
     
-    img = Image.alpha_composite(img, gradient)
+    if params.theme.upper() != "ALTTA_PRODUCT_CARD":
+        img = Image.alpha_composite(img, gradient)
     draw = ImageDraw.Draw(img)
 
     # ═══ STEP 2: FONTS ═══
@@ -455,6 +477,98 @@ def process_image(image_bytes: bytes, params: AdParameters) -> bytes:
         return None
 
     # ═══ STEP 3: LOGO ═══
+    if params.theme.upper() == "ALTTA_PRODUCT_CARD":
+        price_color = hex_to_rgba(params.accent_color_hex) or theme_cfg["accent"]
+        headline_color = hex_to_rgba(params.text_color_hex) or theme_cfg["headline"]
+        cta_color = hex_to_rgba(params.body_color_hex) or theme_cfg["body"]
+        model_color = hex_to_rgba(params.project_color_hex) or theme_cfg["headline"]
+        logo_color = hex_to_rgba(params.logo_color_hex) or theme_cfg["accent"]
+
+        f_brand = load_font(FONT_SANS, max(22, int(height * (params.super_font_size / 100.0) * 1.1 * font_scale)))
+        f_model = load_font(FONT_SANS, max(22, int(height * (params.project_font_size / 100.0) * 1.1 * font_scale)))
+        f_hook = load_font(FONT_SERIF, max(42, int(height * (params.headline_font_size / 100.0) * 1.1 * font_scale)))
+        f_price = load_font(FONT_SERIF, max(30, int(height * (params.body_font_size / 100.0) * 1.1 * font_scale)))
+        f_cta = load_font(FONT_SANS, max(20, int(height * (params.cta_font_size / 100.0) * 1.1 * font_scale)))
+
+        pad = int(width * 0.065)
+        top_y = int(height * 0.055)
+        brand = params.brand_name or params.super_headline or "AlttaHomes"
+        model_name = params.model_name or params.project_name
+        hook = params.main_headline
+        price = params.price_text or ""
+        if price and not price.lower().startswith("desde"):
+            price = f"Desde {price}"
+        cta = params.cta_text or ""
+        phone = params.phone_text or ""
+
+        default_layout = {
+            "logo": {"x": 50, "y": 14, "width": 42},
+            "model": {"x": 50, "y": 52, "width": 70},
+            "headline": {"x": 50, "y": 62, "width": 92},
+            "price": {"x": 50, "y": 75, "width": 72},
+            "cta": {"x": 50, "y": 86, "width": 72},
+        }
+        try:
+            free_layout = json.loads(params.altta_layout_json) if params.altta_layout_json else {}
+            if not isinstance(free_layout, dict):
+                free_layout = {}
+        except Exception:
+            free_layout = {}
+
+        def layer_config(key):
+            base = default_layout[key].copy()
+            incoming = free_layout.get(key, {})
+            if isinstance(incoming, dict):
+                for item in ("x", "y", "width"):
+                    if item in incoming:
+                        try:
+                            base[item] = float(incoming[item])
+                        except (TypeError, ValueError):
+                            pass
+            base["x"] = max(0, min(100, base["x"]))
+            base["y"] = max(0, min(100, base["y"]))
+            base["width"] = max(10, min(100, base["width"]))
+            return base
+
+        align_mode_altta = params.layout.lower()
+        draw_align = "center" if align_mode_altta not in ["left", "right"] else align_mode_altta
+
+        def draw_free_text(key, text, font, fill, spacing=8):
+            if not text:
+                return
+            cfg = layer_config(key)
+            max_w = width * (cfg["width"] / 100)
+            wrapped = wrap_text(text, font, max_w)
+            bbox = state['draw'].multiline_textbbox((0, 0), wrapped, font=font, align=draw_align, spacing=spacing)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+            anchor_x = width * (cfg["x"] / 100)
+            anchor_y = height * (cfg["y"] / 100)
+            if align_mode_altta == "left":
+                x = anchor_x
+            elif align_mode_altta == "right":
+                x = anchor_x - text_w
+            else:
+                x = anchor_x - (text_w / 2)
+            y = anchor_y - (text_h / 2)
+            draw_text_with_shadow((x, y), wrapped, font, fill, draw_align, shadow_radius=max(2, int(height * 0.0015)))
+
+        draw_free_text("logo", brand, f_brand, logo_color)
+        draw_free_text("model", f"Modelo {model_name}", f_model, model_color)
+        draw_free_text("headline", hook, f_hook, headline_color, spacing=max(8, int(height * 0.006)))
+        draw_free_text("price", price, f_price, price_color)
+
+        bottom_text = "  -  ".join([t for t in [cta, phone] if t])
+        draw_free_text("cta", bottom_text, f_cta, cta_color)
+
+        out_io = BytesIO()
+        final_img = state['img']
+        if params.output_format.lower() == "png":
+            final_img.convert('RGBA').save(out_io, format="PNG", optimize=True)
+        else:
+            final_img.convert('RGB').save(out_io, format="JPEG", quality=100, subsampling=0, optimize=True)
+        return out_io.getvalue()
+
     if os.path.exists(LOGO_PATH):
         try:
             logo = Image.open(LOGO_PATH).convert('RGBA')

@@ -704,6 +704,102 @@ Devuelve JSON puro con estructura: {{"variantes": [{{"super_headline": "...", "m
         print(f"Error Calling Gemini Generate Copy: {e}")
         return get_fallback()
 
+
+def generate_altta_product_copy(
+    development: str,
+    model_name: str,
+    product_type: str = "",
+    price_text: str = "",
+    specs_text: str = "",
+    cta_text: str = "Agenda tu cita",
+    context: str = "",
+    hashtags: str = "",
+) -> dict:
+    """Genera frases cortas y copy social para productos de Altta Homes."""
+    fallback_hooks = [
+        f"Tu nuevo hogar en {development}",
+        "Vive cerca de todo lo que importa",
+        "Estrena un hogar pensado para crecer",
+    ]
+    fallback_posts = [
+        {
+            "titulo": f"{development} - Modelo {model_name}",
+            "cuerpo": (
+                f"Conoce {product_type.lower() or 'propiedad'} Modelo {model_name} en {development}. "
+                f"{price_text}. {specs_text}. {cta_text} y recibe informacion personalizada."
+            ),
+            "hashtags": hashtags or "#AlttaHomes #Cancun #BienesRaices #CasasEnCancun #InversionInmobiliaria",
+        }
+    ]
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return {"success": True, "hooks": fallback_hooks, "social_posts": fallback_posts, "fallback": True}
+
+    try:
+        client = genai.Client(api_key=api_key)
+        prompt = f"""
+Eres copywriter inmobiliario para Altta Homes Cancun.
+
+Datos fijos que NO debes cambiar ni inventar:
+- Desarrollo: {development}
+- Modelo: {model_name}
+- Tipo: {product_type}
+- Precio: {price_text}
+- Especificaciones: {specs_text}
+- CTA: {cta_text}
+- Contexto: {context}
+
+Tarea:
+1. Genera 5 frases gancho para poner SOBRE una imagen publicitaria.
+2. Genera 3 copys para publicacion en redes.
+
+Reglas para frases gancho:
+- Maximo 9 palabras.
+- Espanol mexicano, claro, familiar y aspiracional.
+- No uses emojis.
+- No menciones precio, m2, recamaras ni banos en la frase gancho.
+- No inventes amenidades no incluidas en el contexto.
+
+Reglas para copy de publicacion:
+- 450 caracteres maximo por variante.
+- Debe incluir el precio exactamente como esta escrito, siempre conservando "Desde".
+- Debe incluir modelo, desarrollo, specs y CTA.
+- Hashtags: usa estos si existen: {hashtags}. Si no existen, crea 6 hashtags sobrios.
+
+Devuelve JSON puro:
+{{
+  "hooks": ["...", "..."],
+  "social_posts": [
+    {{"titulo": "...", "cuerpo": "...", "hashtags": "..."}}
+  ]
+}}
+"""
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            config=genai.types.GenerateContentConfig(
+                temperature=0.75,
+                response_mime_type="application/json",
+            ),
+            contents=prompt,
+        )
+        clean_text = response.text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:]
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3]
+        data = json.loads(clean_text)
+        hooks = [h.strip() for h in data.get("hooks", []) if isinstance(h, str) and h.strip()]
+        posts = data.get("social_posts", [])
+        if not hooks:
+            hooks = fallback_hooks
+        if not posts:
+            posts = fallback_posts
+        return {"success": True, "hooks": hooks[:5], "social_posts": posts[:3]}
+    except Exception as e:
+        print(f"Error generating Altta copy: {e}")
+        return {"success": True, "hooks": fallback_hooks, "social_posts": fallback_posts, "fallback": True}
+
 def generate_social_posts(project_name: str, context: str = "") -> str:
     """Generates social media post variations using Gemini."""
     db = load_project_database()

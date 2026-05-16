@@ -35,6 +35,7 @@ from ai_copywriter import (
     generate_html_ad,
     CHAT_MODELS,
     IMAGE_MODELS,
+    generate_altta_product_copy,
     split_script_into_scenes,
     build_visual_bible,
 )
@@ -76,7 +77,18 @@ async def render_ad(
     super_font_size: float = Form(1.4),
     project_font_size: float = Form(4.0),
     headline_font_size: float = Form(2.8),
-    body_font_size: float = Form(1.8)
+    body_font_size: float = Form(1.8),
+    cta_font_size: float = Form(1.2),
+    brand_name: str = Form(""),
+    developer_name: str = Form(""),
+    development_name: str = Form(""),
+    model_name: str = Form(""),
+    product_type: str = Form(""),
+    price_text: str = Form(""),
+    specs_text: str = Form(""),
+    cta_text: str = Form(""),
+    phone_text: str = Form(""),
+    altta_layout_json: str = Form("")
 ):
     try:
         contents = await image.read()
@@ -103,7 +115,18 @@ async def render_ad(
             super_font_size=super_font_size,
             project_font_size=project_font_size,
             headline_font_size=headline_font_size,
-            body_font_size=body_font_size
+            body_font_size=body_font_size,
+            cta_font_size=cta_font_size,
+            brand_name=brand_name,
+            developer_name=developer_name,
+            development_name=development_name,
+            model_name=model_name,
+            product_type=product_type,
+            price_text=price_text,
+            specs_text=specs_text,
+            cta_text=cta_text,
+            phone_text=phone_text,
+            altta_layout_json=altta_layout_json
         )
         
         output_bytes = process_image(contents, params)
@@ -181,6 +204,32 @@ async def get_social_copy(request: AICopyRequest):
         return data
     except:
         return {"variantes": [], "error": f"Invalid JSON or AI error: {copy_json[:100]}..."}
+
+
+class AlttaProductCopyRequest(BaseModel):
+    development: str
+    model_name: str
+    product_type: str = ""
+    price_text: str = ""
+    specs_text: str = ""
+    cta_text: str = "Agenda tu cita"
+    context: str = ""
+    hashtags: str = ""
+
+
+@app.post("/api/altta/product-copy")
+async def altta_product_copy(request: AlttaProductCopyRequest):
+    """Genera frase gancho y copy de publicacion para productos Altta Homes."""
+    return generate_altta_product_copy(
+        development=request.development,
+        model_name=request.model_name,
+        product_type=request.product_type,
+        price_text=request.price_text,
+        specs_text=request.specs_text,
+        cta_text=request.cta_text,
+        context=request.context,
+        hashtags=request.hashtags,
+    )
 
 class ImageGenRequest(BaseModel):
     prompt: str
